@@ -1,2 +1,0 @@
-# Cloudflare Pages SPA routing for admin
-/admin/*  /admin/:splat  200
