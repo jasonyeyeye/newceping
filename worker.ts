@@ -169,6 +169,18 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname;
 
+  // CORS headers for all responses
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+
+  // Handle CORS preflight
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
   // Article list with optional status filter
   if (path === '/api/articles' && request.method === 'GET') {
     const status = url.searchParams.get('status');
@@ -690,7 +702,12 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
 }
 
 export default {
-  fetch(request: Request, env: Env) {
-    return handleRequest(request, env);
+  async fetch(request: Request, env: Env) {
+    const response = await handleRequest(request, env);
+    const newHeaders = new Headers(response.headers);
+    newHeaders.set('Access-Control-Allow-Origin', '*');
+    newHeaders.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    newHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return new Response(response.body, { status: response.status, headers: newHeaders });
   },
 };
