@@ -8,6 +8,7 @@ import Navigation from './pages/Navigation';
 import Pages from './pages/Pages';
 import Affiliates from './pages/Affiliates';
 import Settings from './pages/Settings';
+import Media from './pages/Media';
 import Layout from './components/Layout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -50,6 +51,7 @@ export default function App() {
           <Route path="pages" element={<Pages />} />
           <Route path="affiliates" element={<Affiliates />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="media" element={<Media />} />
         </Route>
       </Routes>
     </BrowserRouter>

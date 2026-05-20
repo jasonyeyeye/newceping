@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Edit, Trash2, RefreshCw, X, CheckCircle, Link as LinkIcon } from 'lucide-react';
+import { Search, Edit, Trash2, RefreshCw, X, CheckCircle, Link as LinkIcon, ChevronDown } from 'lucide-react';
 import { getArticles, getCategories, getFeishuDocs, syncArticleFromFeishu, getArticle, updateArticle, deleteArticle, writeGitHubFile } from '../lib/api';
 
 interface Article {
@@ -164,9 +164,168 @@ export default function Articles() {
   const [saving, setSaving] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Auto-save
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'unsaved' | 'saving' | 'saved'>('unsaved');
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSaveMsgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showAutoSaveMsg, setShowAutoSaveMsg] = useState(false);
+
+  // Batch operations
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBatchMenu, setShowBatchMenu] = useState(false);
+  const [batchAction, setBatchAction] = useState<'publish' | 'delete' | 'move' | null>(null);
+  const [moveTargetCatId, setMoveTargetCatId] = useState<string>('');
+  const [allSelected, setAllSelected] = useState(false);
+
+  // Batch action handlers
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const selectAll = useCallback(() => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map(a => a.id)));
+    }
+    setAllSelected(!allSelected);
+  }, [allSelected]);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+    setShowBatchMenu(false);
+    setBatchAction(null);
+    setAllSelected(false);
+  }, []);
+
+  const batchPublish = useCallback(async () => {
+    if (!confirm(`确认发布 ${selectedIds.size} 篇文章？`)) return;
+    setSaving(true);
+    try {
+      for (const id of selectedIds) {
+        const article = articles.find(a => a.id === id);
+        if (!article || article.status === 'published') continue;
+        const category = categories.find(c => c.id === article.categoryId);
+        const content = `---
+title: "${article.title}"
+description: "${article.excerpt || ''}"
+category: "${category?.name || ''}"
+categorySlug: "${category?.slug || ''}"
+featuredImage: "${article.featuredImage || ''}"
+publishedAt: "${article.publishedAt || new Date().toISOString()}"
+---
+
+${article.content || '文章内容'}
+`;
+        await writeGitHubFile(`src/content/blog/${article.slug}.md`, content, `发布文章: ${article.title}`);
+        await updateArticle(id, { ...article, status: 'published', publishedAt: new Date().toISOString() });
+      }
+      await loadData();
+      clearSelection();
+      alert('批量发布成功！');
+    } catch (err) {
+      alert('批量发布失败: ' + (err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }, [selectedIds, articles, categories, clearSelection]);
+
+  const batchDelete = useCallback(async () => {
+    if (!confirm(`确认彻底删除 ${selectedIds.size} 篇文章？此操作不可恢复！`)) return;
+    setSaving(true);
+    try {
+      for (const id of selectedIds) {
+        await deleteArticle(id);
+      }
+      await loadData();
+      clearSelection();
+      alert('批量删除成功！');
+    } catch (err) {
+      alert('批量删除失败: ' + (err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }, [selectedIds, clearSelection]);
+
+  const batchMoveCategory = useCallback(async () => {
+    if (!moveTargetCatId) {
+      alert('请选择目标分类');
+      return;
+    }
+    if (!confirm(`确认将 ${selectedIds.size} 篇文章移动到分类「${categories.find(c => c.id === moveTargetCatId)?.name}」？`)) return;
+    setSaving(true);
+    try {
+      for (const id of selectedIds) {
+        const article = articles.find(a => a.id === id);
+        if (article) {
+          await updateArticle(id, { ...article, categoryId: moveTargetCatId });
+        }
+      }
+      await loadData();
+      clearSelection();
+      setMoveTargetCatId('');
+      alert('批量移动成功！');
+    } catch (err) {
+      alert('批量移动失败: ' + (err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }, [selectedIds, moveTargetCatId, articles, categories, clearSelection]);
+
+  const executeBatchAction = useCallback(() => {
+    if (batchAction === 'publish') batchPublish();
+    else if (batchAction === 'delete') batchDelete();
+    else if (batchAction === 'move') batchMoveCategory();
+  }, [batchAction, batchPublish, batchDelete, batchMoveCategory]);
+
   useEffect(() => {
     loadData();
   }, []);
+
+  // Auto-save: debounce 30s after content/form changes
+  useEffect(() => {
+    if (!editingArticle) return;
+    setAutoSaveStatus('unsaved');
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(async () => {
+      setAutoSaveStatus('saving');
+      try {
+        await updateArticle(editingArticle.id, {
+          ...editingArticle,
+          ...editForm,
+          content: editContent,
+          seo: {
+            metaTitle: seoForm.metaTitle,
+            metaDescription: seoForm.metaDescription,
+            canonicalUrl: seoForm.canonicalUrl,
+            focusKeyword: seoForm.focusKeyword,
+          },
+        });
+        setAutoSaveStatus('saved');
+        setShowAutoSaveMsg(true);
+        if (autoSaveMsgTimerRef.current) clearTimeout(autoSaveMsgTimerRef.current);
+        autoSaveMsgTimerRef.current = setTimeout(() => setShowAutoSaveMsg(false), 3000);
+      } catch {
+        setAutoSaveStatus('unsaved');
+      }
+    }, 30000);
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      if (autoSaveMsgTimerRef.current) clearTimeout(autoSaveMsgTimerRef.current);
+    };
+  }, [editContent, editForm, seoForm, editingArticle]);
+
+  // Reset auto-save when opening editor
+  useEffect(() => {
+    if (editingArticle) {
+      setAutoSaveStatus('unsaved');
+      setShowAutoSaveMsg(false);
+    }
+  }, [editingArticle?.id]);
 
   async function loadData() {
     try {
@@ -541,6 +700,45 @@ ${article.content || '文章内容'}
         </div>
       </div>
 
+      {/* Batch Operation Bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 p-3 bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/30 rounded-lg mb-4">
+          <span className="text-sm text-white">
+            已选 <span className="font-bold">{selectedIds.size}</span> 篇
+          </span>
+          <div className="relative">
+            <button
+              onClick={() => setShowBatchMenu(!showBatchMenu)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors"
+            >
+              批量操作 <ChevronDown className="w-4 h-4" />
+            </button>
+            {showBatchMenu && (
+              <div className="absolute top-full left-0 mt-1 w-44 bg-[var(--color-surface)] border border-white/10 rounded-lg shadow-xl z-10">
+                <button onClick={() => { setBatchAction('publish'); setShowBatchMenu(false); executeBatchAction(); }} className="w-full px-4 py-2.5 text-left text-sm text-white hover:bg-white/10 rounded-t-lg">发布</button>
+                <button onClick={() => { setBatchAction('move'); setShowBatchMenu(false); }} className="w-full px-4 py-2.5 text-left text-sm text-white hover:bg-white/10">移动到分类</button>
+                <button onClick={() => { setBatchAction('delete'); setShowBatchMenu(false); executeBatchAction(); }} className="w-full px-4 py-2.5 text-left text-sm text-red-400 hover:bg-red-500/10 rounded-b-lg">彻底删除</button>
+              </div>
+            )}
+          </div>
+          {batchAction === 'move' && (
+            <div className="flex items-center gap-2">
+              <select
+                value={moveTargetCatId}
+                onChange={e => setMoveTargetCatId(e.target.value)}
+                className="px-3 py-1.5 bg-[var(--color-background)] border border-white/10 rounded-lg text-sm text-white focus:border-[var(--color-primary)] focus:outline-none"
+              >
+                <option value="">选择分类...</option>
+                {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+              </select>
+              <button onClick={batchMoveCategory} className="px-3 py-1.5 bg-[var(--color-primary)] hover:bg-[var(--color-primary)]/80 text-white text-sm rounded-lg">确认</button>
+              <button onClick={() => { setBatchAction(null); setMoveTargetCatId(''); }} className="p-1.5 text-gray-400 hover:text-white"><X className="w-4 h-4" /></button>
+            </div>
+          )}
+          <button onClick={clearSelection} className="ml-auto text-sm text-gray-400 hover:text-white">取消选择</button>
+        </div>
+      )}
+
       {/* Articles List */}
       <div className="bg-[var(--color-surface)] rounded-xl border border-white/10 overflow-hidden">
         {filtered.length === 0 ? (
@@ -551,6 +749,14 @@ ${article.content || '文章内容'}
           <table className="w-full">
             <thead>
               <tr className="border-b border-white/10 text-left text-xs text-gray-500 uppercase">
+                <th className="px-4 py-3 font-medium w-10">
+                  <input
+                    type="checkbox"
+                    checked={allSelected && filtered.length > 0}
+                    onChange={selectAll}
+                    className="w-4 h-4 rounded border-gray-600 bg-[var(--color-background)] text-[var(--color-primary)] focus:ring-0 cursor-pointer"
+                  />
+                </th>
                 <th className="px-4 py-3 font-medium">标题</th>
                 <th className="px-4 py-3 font-medium">分类</th>
                 <th className="px-4 py-3 font-medium">状态</th>
@@ -560,7 +766,18 @@ ${article.content || '文章内容'}
             </thead>
             <tbody className="divide-y divide-white/5">
               {filtered.map(article => (
-                <tr key={article.id} className="text-sm">
+                <tr
+                  key={article.id}
+                  className={`text-sm transition-colors ${selectedIds.has(article.id) ? 'bg-white/5' : ''}`}
+                >
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(article.id)}
+                      onChange={() => toggleSelect(article.id)}
+                      className="w-4 h-4 rounded border-gray-600 bg-[var(--color-background)] text-[var(--color-primary)] focus:ring-0 cursor-pointer"
+                    />
+                  </td>
                   <td className="px-4 py-3">
                     <span className="text-white">{article.title}</span>
                     <span className="block text-xs text-gray-500">/{article.slug}</span>
@@ -617,7 +834,22 @@ ${article.content || '文章内容'}
         <div className="fixed inset-0 bg-black/70 z-50 flex items-start justify-center pt-6 overflow-y-auto">
           <div className="bg-[var(--color-dark)] border border-white/10 rounded-xl w-full max-w-6xl m-4">
             <div className="flex items-center justify-between p-4 border-b border-white/10">
-              <h2 className="text-lg font-bold text-white">编辑文章</h2>
+              <div className="flex items-center gap-4">
+                <h2 className="text-lg font-bold text-white">编辑文章</h2>
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className={
+                    autoSaveStatus === 'unsaved' ? 'text-gray-500' :
+                    autoSaveStatus === 'saving' ? 'text-yellow-400' : 'text-green-400'
+                  }>
+                    {autoSaveStatus === 'unsaved' ? '未保存' : autoSaveStatus === 'saving' ? '保存中...' : '已自动保存'}
+                  </span>
+                  {autoSaveStatus === 'saving' && <RefreshCw className="w-3 h-3 text-yellow-400 animate-spin" />}
+                  {autoSaveStatus === 'saved' && <CheckCircle className="w-3 h-3 text-green-400" />}
+                </div>
+                {showAutoSaveMsg && (
+                  <span className="text-xs text-green-400 animate-pulse">草稿已保存</span>
+                )}
+              </div>
               <button onClick={() => setEditingArticle(null)} className="p-1 text-gray-500 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
@@ -877,6 +1109,7 @@ ${article.content || '文章内容'}
                     </div>
                   </div>
                 </div>
+
               )}
             </div>
 

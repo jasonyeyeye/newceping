@@ -52,6 +52,11 @@ interface AffiliateLink {
   position?: string;
 }
 
+interface ArticleAffiliateRef {
+  linkId: string;
+  addedAt: string;
+}
+
 interface PageMeta {
   id: string;
   slug: string;
@@ -70,6 +75,9 @@ interface Affiliate {
   url: string;
   commission?: string;
   status: 'active' | 'inactive';
+  group: string;
+  clicks: number;
+  lastClickedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -655,12 +663,49 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
         url: body.url,
         commission: body.commission,
         status: body.status || 'active',
+        group: body.group || '',
+        clicks: 0,
+        lastClickedAt: undefined,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
       await setWithIds(env.AFFILIATES, 'affiliates', id, affiliate);
       return new Response(JSON.stringify(affiliate), { status: 201 });
     }
+  }
+
+  // Track affiliate click (POST /api/affiliates/track/:id)
+  const trackMatch = path.match(/^\/api\/affiliates\/track\/([^/]+)$/);
+  if (trackMatch && request.method === 'POST') {
+    const id = trackMatch[1];
+    const data = await env.AFFILIATES.get(`affiliates/${id}`);
+    if (!data) {
+      return new Response(JSON.stringify({ error: 'Affiliate not found' }), { status: 404 });
+    }
+    const affiliate: Affiliate = JSON.parse(data);
+    affiliate.clicks = (affiliate.clicks || 0) + 1;
+    affiliate.lastClickedAt = new Date().toISOString();
+    await env.AFFILIATES.put(`affiliates/${id}`, JSON.stringify(affiliate));
+    return new Response(JSON.stringify({ success: true, clicks: affiliate.clicks }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Short link redirect (GET /affiliate/go/:id)
+  const goMatch = path.match(/^\/affiliate\/go\/([^/]+)$/);
+  if (goMatch && request.method === 'GET') {
+    const id = goMatch[1];
+    const data = await env.AFFILIATES.get(`affiliates/${id}`);
+    if (!data) {
+      return new Response('Not found', { status: 404 });
+    }
+    const affiliate: Affiliate = JSON.parse(data);
+    // Increment click count
+    affiliate.clicks = (affiliate.clicks || 0) + 1;
+    affiliate.lastClickedAt = new Date().toISOString();
+    await env.AFFILIATES.put(`affiliates/${id}`, JSON.stringify(affiliate));
+    // 302 redirect to original URL
+    return Response.redirect(affiliate.url, 302);
   }
 
   // Single affiliate

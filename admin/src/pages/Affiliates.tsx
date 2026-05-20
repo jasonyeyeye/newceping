@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Plus, Copy, Trash2, CheckCircle, Edit, X, RefreshCw } from 'lucide-react';
-import { getAffiliates, createAffiliate, updateAffiliate, deleteAffiliate } from '../lib/api';
+import { Plus, Copy, Trash2, CheckCircle, Edit, X, RefreshCw, BarChart2 } from 'lucide-react';
+import { getAffiliates, createAffiliate, updateAffiliate, deleteAffiliate, trackAffiliateClick } from '../lib/api';
 
 interface Affiliate {
   id: string;
@@ -9,6 +9,9 @@ interface Affiliate {
   url: string;
   anchorText?: string;
   status: 'active' | 'inactive';
+  group: string;
+  clicks: number;
+  lastClickedAt?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -20,13 +23,43 @@ const PLATFORMS = [
   { value: 'other', label: 'Other' },
 ];
 
+function formatRelativeTime(isoString?: string): string {
+  if (!isoString) return '-';
+  const date = new Date(isoString);
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  if (diffMins < 1) return '刚刚';
+  if (diffMins < 60) return `${diffMins}分钟前`;
+  if (diffHours < 24) return `${diffHours}小时前`;
+  if (diffDays < 30) return `${diffDays}天前`;
+  return date.toLocaleDateString('zh-CN');
+}
+
 export default function Affiliates() {
   const [affiliates, setAffiliates] = useState<Affiliate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<{ name: string; platform: string; url: string; anchorText: string; status: 'active' | 'inactive' }>({ name: '', platform: 'amazon', url: '', anchorText: '', status: 'active' });
+  const [groupFilter, setGroupFilter] = useState<string>('');
+  const [form, setForm] = useState<{
+    name: string;
+    platform: string;
+    url: string;
+    anchorText: string;
+    group: string;
+    status: 'active' | 'inactive';
+  }>({
+    name: '',
+    platform: 'amazon',
+    url: '',
+    anchorText: '',
+    group: '',
+    status: 'active',
+  });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -44,10 +77,19 @@ export default function Affiliates() {
     }
   }
 
-  function copyUrl(url: string) {
-    navigator.clipboard.writeText(url);
-    setCopied(url);
-    setTimeout(() => setCopied(null), 2000);
+  async function copyShortLink(aff: Affiliate) {
+    const shortUrl = `/affiliate/go/${aff.id}`;
+    navigator.clipboard.writeText(shortUrl);
+    setCopiedId(aff.id);
+    // Track click
+    try {
+      await trackAffiliateClick(aff.id);
+      // Refresh to show updated click count
+      await loadAffiliates();
+    } catch (err) {
+      console.error('追踪点击失败:', err);
+    }
+    setTimeout(() => setCopiedId(null), 2000);
   }
 
   function openEdit(aff: Affiliate) {
@@ -57,6 +99,7 @@ export default function Affiliates() {
       platform: aff.platform,
       url: aff.url,
       anchorText: aff.anchorText || '',
+      group: aff.group || '',
       status: aff.status,
     });
     setShowForm(true);
@@ -64,7 +107,7 @@ export default function Affiliates() {
 
   function openCreate() {
     setEditingId(null);
-    setForm({ name: '', platform: 'amazon', url: '', anchorText: '', status: 'active' });
+    setForm({ name: '', platform: 'amazon', url: '', anchorText: '', group: '', status: 'active' });
     setShowForm(true);
   }
 
@@ -99,6 +142,23 @@ export default function Affiliates() {
     }
   }
 
+  // Get all unique groups
+  const allGroups = Array.from(
+    new Set(affiliates.map(a => a.group).filter(Boolean))
+  ).sort();
+
+  // Group affiliates
+  const filteredAffiliates = groupFilter
+    ? affiliates.filter(a => a.group === groupFilter)
+    : affiliates;
+
+  const grouped = filteredAffiliates.reduce<Record<string, Affiliate[]>>((acc, aff) => {
+    const key = aff.group || '未分组';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(aff);
+    return acc;
+  }, {});
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -129,6 +189,32 @@ export default function Affiliates() {
         </div>
       </div>
 
+      {/* Group Filter */}
+      {allGroups.length > 0 && (
+        <div className="flex items-center gap-3 mb-5">
+          <span className="text-sm text-gray-500">分组筛选:</span>
+          <button
+            onClick={() => setGroupFilter('')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              groupFilter === '' ? 'bg-[var(--color-primary)] text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'
+            }`}
+          >
+            全部
+          </button>
+          {allGroups.map(g => (
+            <button
+              key={g}
+              onClick={() => setGroupFilter(g)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                groupFilter === g ? 'bg-[var(--color-primary)] text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'
+              }`}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Create/Edit Form Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -150,17 +236,33 @@ export default function Affiliates() {
                   className="w-full px-4 py-2.5 bg-[var(--color-background)] border border-white/10 rounded-lg text-white focus:border-[var(--color-primary)] focus:outline-none"
                 />
               </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">平台 *</label>
-                <select
-                  value={form.platform}
-                  onChange={e => setForm({ ...form, platform: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-[var(--color-background)] border border-white/10 rounded-lg text-white focus:border-[var(--color-primary)] focus:outline-none"
-                >
-                  {PLATFORMS.map(p => (
-                    <option key={p.value} value={p.value}>{p.label}</option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">平台 *</label>
+                  <select
+                    value={form.platform}
+                    onChange={e => setForm({ ...form, platform: e.target.value })}
+                    className="w-full px-4 py-2.5 bg-[var(--color-background)] border border-white/10 rounded-lg text-white focus:border-[var(--color-primary)] focus:outline-none"
+                  >
+                    {PLATFORMS.map(p => (
+                      <option key={p.value} value={p.value}>{p.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">分组</label>
+                  <input
+                    type="text"
+                    value={form.group}
+                    onChange={e => setForm({ ...form, group: e.target.value })}
+                    placeholder="如: We-Vibe"
+                    list="group-suggestions"
+                    className="w-full px-4 py-2.5 bg-[var(--color-background)] border border-white/10 rounded-lg text-white focus:border-[var(--color-primary)] focus:outline-none"
+                  />
+                  <datalist id="group-suggestions">
+                    {allGroups.map(g => <option key={g} value={g} />)}
+                  </datalist>
+                </div>
               </div>
               <div>
                 <label className="block text-sm text-gray-400 mb-2">链接 URL *</label>
@@ -213,77 +315,99 @@ export default function Affiliates() {
         </div>
       )}
 
-      {/* Affiliates Table */}
-      <div className="bg-[var(--color-surface)] rounded-xl border border-white/10 overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-white/10 text-left text-xs text-gray-500 uppercase">
-              <th className="px-4 py-3 font-medium">名称</th>
-              <th className="px-4 py-3 font-medium">平台</th>
-              <th className="px-4 py-3 font-medium">链接</th>
-              <th className="px-4 py-3 font-medium">状态</th>
-              <th className="px-4 py-3 font-medium">操作</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {affiliates.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
-                  暂无推广链接，点击"添加链接"创建
-                </td>
-              </tr>
-            ) : affiliates.map(aff => (
-              <tr key={aff.id} className="text-sm">
-                <td className="px-4 py-3 text-white">{aff.name}</td>
-                <td className="px-4 py-3">
-                  <span className="inline-flex px-2 py-0.5 rounded-full text-xs bg-white/10 text-gray-300 capitalize">
-                    {aff.platform}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-500 truncate max-w-xs">{aff.url}</span>
-                    <button
-                      onClick={() => copyUrl(aff.url)}
-                      className="p-1 text-gray-500 hover:text-white hover:bg-white/10 rounded transition-colors"
-                    >
-                      {copied === aff.url ? (
-                        <CheckCircle className="w-4 h-4 text-green-400" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs ${
-                    aff.status === 'active'
-                      ? 'bg-green-500/20 text-green-400'
-                      : 'bg-gray-500/20 text-gray-400'
-                  }`}>
-                    {aff.status === 'active' ? '有效' : '无效'}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => openEdit(aff)}
-                      className="p-1.5 text-gray-500 hover:text-white hover:bg-white/10 rounded transition-colors"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(aff.id)}
-                      className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Affiliates Grouped List */}
+      <div className="space-y-6">
+        {Object.keys(grouped).length === 0 ? (
+          <div className="bg-[var(--color-surface)] rounded-xl border border-white/10 p-8 text-center text-gray-500">
+            暂无推广链接，点击"添加链接"创建
+          </div>
+        ) : Object.entries(grouped).map(([groupName, groupAffiliates]) => (
+          <div key={groupName}>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm font-semibold text-gray-400 uppercase tracking-wider">{groupName}</span>
+              <span className="text-xs text-gray-600">({groupAffiliates.length})</span>
+            </div>
+            <div className="bg-[var(--color-surface)] rounded-xl border border-white/10 overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-white/10 text-left text-xs text-gray-500 uppercase">
+                    <th className="px-4 py-3 font-medium">名称</th>
+                    <th className="px-4 py-3 font-medium">平台</th>
+                    <th className="px-4 py-3 font-medium">短链</th>
+                    <th className="px-4 py-3 font-medium">点击</th>
+                    <th className="px-4 py-3 font-medium">最后点击</th>
+                    <th className="px-4 py-3 font-medium">状态</th>
+                    <th className="px-4 py-3 font-medium">操作</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {groupAffiliates.map(aff => (
+                    <tr key={aff.id} className="text-sm">
+                      <td className="px-4 py-3 text-white font-medium">{aff.name}</td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs bg-white/10 text-gray-300 capitalize">
+                          {aff.platform}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <code className="text-xs text-gray-500 bg-white/5 px-1.5 py-0.5 rounded">
+                            /affiliate/go/{aff.id.slice(0, 8)}
+                          </code>
+                          <button
+                            onClick={() => copyShortLink(aff)}
+                            className="p-1 text-gray-500 hover:text-[var(--color-primary)] hover:bg-white/10 rounded transition-colors"
+                            title="复制短链并追踪"
+                          >
+                            {copiedId === aff.id ? (
+                              <CheckCircle className="w-4 h-4 text-green-400" />
+                            ) : (
+                              <Copy className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <BarChart2 className="w-3.5 h-3.5 text-gray-500" />
+                          <span className="text-white font-mono text-sm">{aff.clicks || 0}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">
+                        {formatRelativeTime(aff.lastClickedAt)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs ${
+                          aff.status === 'active'
+                            ? 'bg-green-500/20 text-green-400'
+                            : 'bg-gray-500/20 text-gray-400'
+                        }`}>
+                          {aff.status === 'active' ? '有效' : '无效'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => openEdit(aff)}
+                            className="p-1.5 text-gray-500 hover:text-white hover:bg-white/10 rounded transition-colors"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(aff.id)}
+                            className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

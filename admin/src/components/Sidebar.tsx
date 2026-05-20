@@ -8,6 +8,7 @@ import {
   Link2,
   Settings,
   LogOut,
+  Image,
 } from 'lucide-react';
 
 const navItems = [
@@ -17,6 +18,7 @@ const navItems = [
   { to: 'navigation', icon: Menu, label: '导航' },
   { to: 'pages', icon: Globe, label: '页面' },
   { to: 'affiliates', icon: Link2, label: '推广链接' },
+  { to: 'media', icon: Image, label: '媒体库' },
   { to: 'settings', icon: Settings, label: '设置' },
 ];
 

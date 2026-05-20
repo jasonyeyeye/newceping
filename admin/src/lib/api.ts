@@ -143,3 +143,7 @@ export async function updateAffiliate(id: string, data: any) {
 export async function deleteAffiliate(id: string) {
   return apiDelete(`/api/affiliates/${id}`);
 }
+
+export async function trackAffiliateClick(id: string) {
+  return apiPost(`/api/affiliates/track/${id}`);
+}
