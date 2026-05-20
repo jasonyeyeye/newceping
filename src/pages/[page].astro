@@ -1,0 +1,315 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+export function getStaticPaths() {
+  return [
+    { params: { page: 'about' } },
+    { params: { page: 'contact' } },
+    { params: { page: 'privacy' } },
+    { params: { page: 'terms' } },
+    { params: { page: 'disclosure' } },
+  ];
+}
+
+interface Props {
+  page: string;
+}
+
+const { page } = Astro.params;
+
+// Page content as markdown strings
+const pages: Record<string, { title: string; description: string; content: string }> = {
+  about: {
+    title: 'About Us — AdultToyReview',
+    description: 'Learn about the AdultToyReview team, our mission, and how we test adult products.',
+    content: `## Our Mission
+
+AdultToyReview exists to help you make informed decisions about adult products. We buy every product we review at full retail price — no free samples, no manufacturer influence.
+
+## Who We Are
+
+We're a small team of sex-positive writers, educators, and product testers. Our backgrounds span sexual health journalism, product design, and wellness coaching. We test in real homes, with real people, over extended periods.
+
+## How We Test
+
+Every product goes through a rigorous testing process:
+
+- **Minimum 4-week testing period** per product
+- **Multiple testers** with different bodies and preferences
+- **Objective metrics**: power output, noise level, battery life, ease of cleaning, durability
+- **Subjective metrics**: ease of use, sensation quality, value for money
+
+We rate products on a 1-5 scale across categories, then aggregate into an overall score. We never allow manufacturers to preview reviews before publication.
+
+## Our Standards
+
+We only recommend products we'd use ourselves or suggest to close friends. If something doesn't meet our standards, we say so — even if it's a bestseller.
+
+## Contact
+
+Have a product suggestion? Want to pitch a guest article? Reach out at **hello@adulttoyreview.com**
+
+We're a small team, but we read every email.`
+  },
+  contact: {
+    title: 'Contact Us — AdultToyReview',
+    description: 'Get in touch with the AdultToyReview team for partnerships, feedback, or product inquiries.',
+    content: `## Get in Touch
+
+We love hearing from readers. Whether you have a product suggestion, want to report an error, or are interested in a partnership — drop us a line.
+
+### General Inquiries
+**Email**: hello@adulttoyreview.com
+
+We respond to all emails within 2 business days.
+
+### Partnerships
+
+We're open to:
+- **Affiliate partnerships** with reputable retailers
+- **Guest articles** from qualified sexual health professionals
+- **Product testing opportunities** (we maintain editorial independence regardless of how products are obtained)
+
+We do **not** accept:
+- Paid reviews or sponsored content
+- Free products in exchange for positive coverage
+- Placement fees from manufacturers
+
+### Press & Media
+
+If you're a journalist researching sexual wellness or adult product industry topics, we're happy to connect you with our network of experts. Contact us at the email above with "Press Inquiry" in the subject line.
+
+### Report an Error
+
+Found something inaccurate in our reviews? We take factual errors seriously. Email us with "Correction" in the subject line and we'll investigate promptly.`
+  },
+  privacy: {
+    title: 'Privacy Policy — AdultToyReview',
+    description: 'How AdultToyReview collects, uses, and protects your personal data.',
+    content: `## Privacy Policy
+
+Last updated: January 2024
+
+### Information We Collect
+
+**Automatically collected data:**
+- Browser type and version
+- Operating system
+- Pages visited and time spent
+- Referring website
+- General geographic location (country/region level, not precise)
+
+This data is collected via standard server logs and basic analytics. We do not use tracking pixels or invasive surveillance technology.
+
+**Information you voluntarily provide:**
+- Email address (if you subscribe to our newsletter or contact us)
+- Name (if you submit a comment or contact form)
+
+We do not collect: credit card numbers, physical addresses, phone numbers, or precise location data.
+
+### How We Use Your Information
+
+- To send newsletters you've subscribed to (you can unsubscribe anytime)
+- To respond to contact inquiries
+- To improve our website and content
+- To detect and prevent fraud or abuse
+
+### Cookies
+
+We use minimal cookies:
+- **Session cookies**: Required for basic site functionality
+- **Analytics cookies**: To understand how visitors use our site (no personal data included)
+
+You can disable cookies in your browser settings without affecting site functionality.
+
+### Third-Party Services
+
+Our site includes:
+- **Amazon affiliate links**: Amazon may set their own cookies when you click through
+- **Analytics**: We use basic analytics to understand site traffic patterns
+
+We are not responsible for the privacy practices of third-party services.
+
+### Data Retention
+
+- Email subscriptions: retained until you unsubscribe
+- Contact form submissions: retained for 12 months
+- Server logs: retained for 90 days
+
+### Your Rights
+
+You have the right to:
+- Request a copy of data we've collected about you
+- Request deletion of your data
+- Opt out of marketing emails at any time
+
+To exercise these rights, email **hello@adulttoyreview.com** with "Privacy Request" in the subject.
+
+### Data Security
+
+We use HTTPS throughout our site. No system is 100% secure, but we take reasonable measures to protect your data.
+
+### Children's Policy
+
+This site is intended for adults 18+. We do not knowingly collect data from individuals under 18.
+
+### Changes to This Policy
+
+If we update this policy, we'll post the revised version here with an updated "last updated" date.
+
+### Contact
+
+For privacy-related questions: **hello@adulttoyreview.com**`
+  },
+  terms: {
+    title: 'Terms of Service — AdultToyReview',
+    description: 'The terms and conditions governing your use of the AdultToyReview website.',
+    content: `## Terms of Service
+
+Last updated: January 2024
+
+### Acceptance of Terms
+
+By using this website, you agree to these terms. If you do not agree, please do not use our site.
+
+### Information Disclaimer
+
+The content on this site is for informational purposes only. Nothing on this site constitutes medical advice. Always consult a qualified healthcare professional regarding sexual health concerns.
+
+Our reviews represent our honest opinions based on testing. Results vary between individuals — we cannot guarantee you'll have the same experience we did.
+
+### Affiliate Disclosure
+
+AdultToyReview contains affiliate links, primarily to Amazon. When you click an affiliate link and make a purchase, we may earn a small commission at no additional cost to you.
+
+This does not influence our reviews or recommendations. We only recommend products we'd use ourselves, regardless of affiliate status.
+
+### Intellectual Property
+
+All original content on this site (text, images, graphics) is owned by AdultToyReview unless otherwise stated. You may not reproduce, distribute, or create derivative works without permission.
+
+Product names and trademarks belong to their respective owners.
+
+### User Conduct
+
+By using our site, you agree not to:
+- Use our site for any illegal purpose
+- Attempt to access areas you shouldn't
+- Disrupt or interfere with our site or servers
+- Use automated tools to scrape our content without permission
+
+### External Links
+
+Our site contains links to external websites (retailers, manufacturers). We are not responsible for the content or practices of any third-party sites.
+
+### Limitation of Liability
+
+AdultToyReview is not liable for:
+- Any direct, indirect, or consequential damages arising from your use of this site
+- Any decisions made based on our reviews or content
+- The actions of third-party websites linked from our site
+
+### Changes to Terms
+
+We may update these terms at any time. Continued use of the site after changes constitutes acceptance of the new terms.
+
+### Governing Law
+
+These terms are governed by applicable law. Any disputes will be resolved under the jurisdiction indicated on our contact page.
+
+### Contact
+
+Questions about these terms? Contact us at **hello@adulttoyreview.com**`
+  },
+  disclosure: {
+    title: 'Affiliate Disclosure — AdultToyReview',
+    description: 'How AdultToyReview makes money through affiliate links and why that does not influence our reviews.',
+    content: `## Affiliate Disclosure
+
+Last updated: January 2024
+
+### How We Make Money
+
+AdultToyReview earns revenue through affiliate commissions. When you click a link on our site and make a purchase, we may receive a small percentage of that sale.
+
+Our primary affiliate partner is **Amazon**, which means we may earn commissions on qualifying purchases made through Amazon links.
+
+### Does This Influence Reviews?
+
+**No.**
+
+We maintain strict editorial independence. Manufacturers cannot pay for reviews, sponsored placement, or positive coverage. We purchase every product we review at full retail price. We do not accept free samples.
+
+If a product is subpar, we say so — even if it's a bestseller with a high affiliate payout. Our reputation is built on trust, and that trust would be destroyed if we let money influence our editorial decisions.
+
+### How It Works
+
+When you click an affiliate link:
+1. You go to the retailer's website (Amazon, etc.)
+2. A tracking cookie is placed in your browser
+3. If you make a purchase within the cookie period, we earn a commission
+4. The price you pay is not affected — commissions come from the retailer's margin, not your purchase price
+
+### Why Affiliate Links?
+
+Affiliate links are a common, transparent way to monetize content reviews. They allow us to:
+- Cover the costs of purchasing and testing products
+- Keep the site running without intrusive advertising
+- Remain independent from manufacturers
+
+### Our Standards
+
+We only link to retailers we trust. We don't work with brands that have repeatedly misled customers or sold unsafe products.
+
+If you have questions about our affiliate relationships, contact us at **hello@adulttoyreview.com**
+
+### Updates
+
+If we ever change our affiliate relationships in a way that could affect editorial integrity, we'll update this page.`
+  }
+};
+
+const currentPage = pages[page!];
+
+if (!currentPage) {
+  return Astro.redirect('/404');
+}
+
+// Remove the stray return Astro.redirect that causes export issues
+const pageData = currentPage;
+
+// Simple markdown to HTML converter
+function renderMarkdown(content: string): string {
+  return content
+    .split('\n\n')
+    .map(block => {
+      if (block.startsWith('## ')) return `<h2 class="text-2xl font-bold text-white mt-10 mb-4">${block.slice(3)}</h2>`;
+      if (block.startsWith('### ')) return `<h3 class="text-xl font-bold text-white mt-8 mb-3">${block.slice(4)}</h3>`;
+      if (block.startsWith('**') && block.endsWith('**')) return `<h4 class="text-lg font-semibold text-white mt-6 mb-2">${block.replace(/\*\*/g, '')}</h4>`;
+      if (block.startsWith('- ') || block.startsWith('* ')) {
+        const items = block.split('\n').map(l => `<li class="ml-4 mb-1 text-gray-300">${l.replace(/^[\-\*]\s/, '')}</li>`).join('');
+        return `<ul class="list-disc list-inside text-gray-300 mb-4 space-y-1">${items}</ul>`;
+      }
+      if (block.match(/^\d+\./)) {
+        const items = block.split('\n').map(l => `<li class="ml-4 mb-1 text-gray-300">${l.replace(/^\d+\.\s/, '')}</li>`).join('');
+        return `<ol class="list-decimal list-inside text-gray-300 mb-4 space-y-1">${items}</ol>`;
+      }
+      // Bold, italic, links
+      block = block.replace(/\*\*(.+?)\*\*/g, '<strong class="text-white font-semibold">$1</strong>');
+      block = block.replace(/\*(.+?)\*/g, '<em class="text-gray-300">$1</em>');
+      block = block.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" class="text-[var(--color-primary)] hover:underline">$1</a>');
+      block = block.replace(/\*\*(.+?)\*\*/g, '<strong class="text-white font-semibold">$1</strong>');
+      if (block.trim()) return `<p class="text-gray-300 mb-4 leading-relaxed">${block}</p>`;
+      return '';
+    })
+    .join('');
+}
+---
+
+<BaseLayout title={currentPage.title} description={currentPage.description}>
+  <section class="max-w-3xl mx-auto px-4 py-16">
+    <article class="bg-[var(--color-surface)] rounded-2xl p-8 md:p-12 border border-white/10">
+      <div class="prose prose-invert max-w-none" set:html={renderMarkdown(currentPage.content)} />
+    </article>
+  </section>
+</BaseLayout>

@@ -1,0 +1,118 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+export async function getStaticPaths() {
+  const apiBase = 'https://adult-toy-review-api.wangzczg-3e8.workers.dev';
+  
+  let articles: any[] = [];
+  let categories: any[] = [];
+  
+  try {
+    const [artsRes, catsRes] = await Promise.all([
+      fetch(`${apiBase}/api/articles?status=published`),
+      fetch(`${apiBase}/api/categories`),
+    ]);
+    if (artsRes.ok) articles = await artsRes.json();
+    if (catsRes.ok) categories = await catsRes.json();
+  } catch (e) {}
+
+  const allPaths: any[] = [];
+
+  for (const article of articles) {
+    let catSlug = article.categorySlug || 'vibrators';
+    let catName = article.category || 'Article';
+    
+    // Try to find category info
+    const cat = categories.find((c: any) => c.id === article.categoryId);
+    if (cat) {
+      catSlug = cat.slug;
+      catName = cat.name;
+    }
+
+    allPaths.push({
+      params: { category: catSlug, slug: article.slug },
+      props: { article, category: { slug: catSlug, name: catName } },
+    });
+  }
+
+  return allPaths;
+}
+
+const { article, category } = Astro.props;
+
+function renderMarkdown(content: string): string {
+  if (!content) return '';
+  
+  return content
+    .split('\n\n')
+    .map(block => {
+      if (block.startsWith('## ')) return `<h2 class="text-2xl font-bold text-white mt-8 mb-4">${block.slice(3)}</h2>`;
+      if (block.startsWith('### ')) return `<h3 class="text-xl font-bold text-white mt-6 mb-3">${block.slice(4)}</h3>`;
+      if (block.startsWith('# ')) return `<h1 class="text-3xl font-bold text-white mb-6">${block.slice(2)}</h1>`;
+      if (block.includes('\n- ')) {
+        const items = block.split('\n').filter(l => l.startsWith('- ')).map(l => `<li class="ml-4 mb-2">${l.slice(2)}</li>`).join('');
+        return `<ul class="list-disc list-inside text-gray-300 mb-4 space-y-1">${items}</ul>`;
+      }
+      block = block.replace(/\*\*(.+?)\*\*/g, '<strong class="text-white font-semibold">$1</strong>');
+      block = block.replace(/\*(.+?)\*/g, '<em>$1</em>');
+      block = block.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" class="text-[var(--color-primary)] hover:underline">$1</a>');
+      if (block.trim()) return `<p class="text-gray-300 mb-4 leading-relaxed">${block}</p>`;
+      return '';
+    })
+    .join('');
+}
+
+const date = article.publishedAt 
+  ? new Date(article.publishedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  : '';
+
+const htmlContent = renderMarkdown(article.content || '');
+
+let affiliateHtml = '';
+if (article.affiliate?.links?.length > 0) {
+  const linksHtml = article.affiliate.links.map((link: any) => 
+    `<a href="${link.url}" target="_blank" rel="noopener sponsored" class="inline-flex items-center gap-2 px-4 py-2 bg-[var(--color-primary)] hover:bg-[var(--color-primary)]/80 text-white text-sm font-medium rounded-lg transition-colors"><span>Buy on ${link.platform}</span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg></a>`
+  ).join('');
+  affiliateHtml = `<div class="mt-12 bg-[var(--color-surface)] rounded-xl p-6 border border-[var(--color-primary)]/30"><h3 class="font-semibold text-white mb-3">Where to Buy</h3><div class="flex flex-wrap gap-3">${linksHtml}</div><p class="text-xs text-gray-500 mt-3">* As an affiliate, we may earn a commission from qualifying purchases at no additional cost to you.</p></div>`;
+}
+---
+
+<BaseLayout 
+  title={`${article.title} — AdultToyReview`} 
+  description={article.excerpt || article.title}
+  ogImage={article.featuredImage}
+>
+  <article class="max-w-4xl mx-auto px-4 py-12">
+    <header class="mb-10">
+      <a href={`/${category.slug}`} class="text-xs font-medium text-[var(--color-primary)] uppercase tracking-wider hover:underline">
+        {category.name}
+      </a>
+      <h1 class="text-3xl md:text-4xl font-bold text-white mt-3 mb-4 leading-tight">{article.title}</h1>
+      <div class="flex items-center gap-4 text-sm text-gray-500">
+        {date ? `<span>${date}</span>` : ''}
+        <span>By {article.author || 'The Review Team'}</span>
+      </div>
+    </header>
+
+    {article.featuredImage && (
+      <div class="aspect-video rounded-xl overflow-hidden mb-10">
+        <img src={article.featuredImage} alt={article.title} class="w-full h-full object-cover" />
+      </div>
+    )}
+
+    <div class="prose prose-invert max-w-none">
+      <Fragment set:html={htmlContent} />
+    </div>
+
+    <Fragment set:html={affiliateHtml} />
+
+    <footer class="mt-12 pt-8 border-t border-white/10">
+      <a href={`/${category.slug}`} class="text-sm text-gray-400 hover:text-white flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Back to {category.name}
+      </a>
+    </footer>
+  </article>
+</BaseLayout>

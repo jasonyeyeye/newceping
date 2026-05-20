@@ -11,19 +11,19 @@ import {
 } from 'lucide-react';
 
 const navItems = [
-  { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
-  { to: '/admin/articles', icon: FileText, label: 'Articles' },
-  { to: '/admin/categories', icon: Folder, label: 'Categories' },
-  { to: '/admin/navigation', icon: Menu, label: 'Navigation' },
-  { to: '/admin/pages', icon: Globe, label: 'Pages' },
-  { to: '/admin/affiliates', icon: Link2, label: 'Affiliates' },
-  { to: '/admin/settings', icon: Settings, label: 'Settings' },
+  { to: '/', icon: LayoutDashboard, label: '控制台', end: true },
+  { to: 'articles', icon: FileText, label: '文章' },
+  { to: 'categories', icon: Folder, label: '分类' },
+  { to: 'navigation', icon: Menu, label: '导航' },
+  { to: 'pages', icon: Globe, label: '页面' },
+  { to: 'affiliates', icon: Link2, label: '推广链接' },
+  { to: 'settings', icon: Settings, label: '设置' },
 ];
 
 export default function Sidebar() {
   function handleLogout() {
     sessionStorage.removeItem('admin_auth');
-    window.location.href = '/admin/login';
+    window.location.href = '/login';
   }
 
   return (
@@ -32,7 +32,7 @@ export default function Sidebar() {
         <span className="text-xl font-bold text-[var(--color-primary)]">
           AdultToy<span className="text-white">Review</span>
         </span>
-        <span className="block text-xs text-gray-500 mt-1">Admin Panel</span>
+        <span className="block text-xs text-gray-500 mt-1">管理后台</span>
       </div>
       <nav className="p-4 space-y-1">
         {navItems.map(({ to, icon: Icon, label, end }) => (
@@ -59,7 +59,7 @@ export default function Sidebar() {
           className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-gray-400 hover:bg-white/5 hover:text-white w-full"
         >
           <LogOut className="w-4 h-4" />
-          Logout
+          退出登录
         </button>
       </div>
     </aside>

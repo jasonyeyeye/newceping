@@ -26,9 +26,18 @@ export async function apiPut(path: string, data: object) {
   return apiPost(path, data, { method: 'PUT' });
 }
 
+export async function apiDelete(path: string) {
+  return apiPost(path, {}, { method: 'DELETE' });
+}
+
 // Articles
-export async function getArticles() {
-  return apiGet('/api/articles');
+export async function getArticles(status?: string) {
+  const query = status ? `?status=${status}` : '';
+  return apiGet(`/api/articles${query}`);
+}
+
+export async function getArticle(id: string) {
+  return apiGet(`/api/articles/${id}`);
 }
 
 export async function createArticle(data: any) {
@@ -36,11 +45,16 @@ export async function createArticle(data: any) {
 }
 
 export async function updateArticle(id: string, data: any) {
-  return apiPost(`/api/articles/${id}`, data, { method: 'PUT' });
+  return apiPut(`/api/articles/${id}`, data);
 }
 
 export async function deleteArticle(id: string) {
-  return apiPost(`/api/articles/${id}`, {}, { method: 'DELETE' });
+  return apiDelete(`/api/articles/${id}`);
+}
+
+// Sync single article from Feishu
+export async function syncArticleFromFeishu(docToken: string, title: string, categoryId: string, slug: string) {
+  return apiPost('/api/articles/sync', { docToken, title, categoryId, slug });
 }
 
 // Categories
@@ -48,13 +62,29 @@ export async function getCategories() {
   return apiGet('/api/categories');
 }
 
+export async function getCategoriesWithCount() {
+  return apiGet('/api/categories/with-count');
+}
+
 export async function createCategory(data: any) {
   return apiPost('/api/categories', data);
+}
+
+export async function updateCategory(id: string, data: any) {
+  return apiPut(`/api/categories/${id}`, data);
+}
+
+export async function deleteCategory(id: string) {
+  return apiDelete(`/api/categories/${id}`);
 }
 
 // Feishu
 export async function getFeishuDocs(folderToken: string) {
   return apiGet(`/api/feishu/docs?folder_token=${folderToken}`);
+}
+
+export async function getFeishuDocContent(token: string) {
+  return apiGet(`/api/feishu/doc?token=${token}`);
 }
 
 // GitHub
@@ -85,7 +115,31 @@ export async function getPages() {
   return apiGet('/api/pages');
 }
 
+export async function createPage(data: any) {
+  return apiPost('/api/pages', data);
+}
+
+export async function updatePage(id: string, data: any) {
+  return apiPut(`/api/pages/${id}`, data);
+}
+
+export async function deletePage(id: string) {
+  return apiDelete(`/api/pages/${id}`);
+}
+
 // Affiliates
 export async function getAffiliates() {
   return apiGet('/api/affiliates');
+}
+
+export async function createAffiliate(data: any) {
+  return apiPost('/api/affiliates', data);
+}
+
+export async function updateAffiliate(id: string, data: any) {
+  return apiPut(`/api/affiliates/${id}`, data);
+}
+
+export async function deleteAffiliate(id: string) {
+  return apiDelete(`/api/affiliates/${id}`);
 }

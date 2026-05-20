@@ -52,6 +52,28 @@ interface AffiliateLink {
   position?: string;
 }
 
+interface PageMeta {
+  id: string;
+  slug: string;
+  title: string;
+  content: string;
+  status: 'draft' | 'published';
+  createdAt: string;
+  updatedAt: string;
+  publishedAt?: string;
+}
+
+interface Affiliate {
+  id: string;
+  platform: string;
+  name: string;
+  url: string;
+  commission?: string;
+  status: 'active' | 'inactive';
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Feishu API
 async function getFeishuAccessToken(env: Env): Promise<string> {
   const response = await fetch('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
@@ -75,6 +97,36 @@ async function getFeishuDocs(env: Env, folderToken: string) {
     }
   );
   return response.json();
+}
+
+async function getFeishuDocContent(env: Env, docToken: string): Promise<{ title: string; content: string; htmlContent?: string }> {
+  const token = await getFeishuAccessToken(env);
+  // Try to get document content via Feishu API
+  const response = await fetch(
+    `https://open.feishu.cn/open-apis/docx/v1/documents/${docToken}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+  const data = await response.json();
+  return {
+    title: data.data?.document?.title || 'Untitled',
+    content: '', // Will be filled with actual content extraction
+    htmlContent: data.data?.document?.html_content || '',
+  };
+}
+
+// Get file download URL for a Feishu file
+async function getFeishuFileDownloadUrl(env: Env, fileToken: string): Promise<string> {
+  const token = await getFeishuAccessToken(env);
+  const response = await fetch(
+    `https://open.feishu.cn/open-apis/drive/v1/files/${fileToken}/download?type=file`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+  const data = await response.json();
+  return data.data?.download_url || '';
 }
 
 // GitHub API
@@ -117,45 +169,176 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname;
 
-  if (path.startsWith('/api/articles')) {
-    if (request.method === 'GET') {
-      const ids = await getAllIds(env.ARTICLES, 'articles');
-      const articles = await Promise.all(
-        ids.map(async id => {
-          const data = await env.ARTICLES.get(`articles/${id}/meta`);
-          return data ? JSON.parse(data) : null;
-        })
-      );
-      return new Response(JSON.stringify(articles.filter(Boolean)), {
+  // Article list with optional status filter
+  if (path === '/api/articles' && request.method === 'GET') {
+    const status = url.searchParams.get('status');
+    const ids = await getAllIds(env.ARTICLES, 'articles');
+    const articles = await Promise.all(
+      ids.map(async id => {
+        const data = await env.ARTICLES.get(`articles/${id}/meta`);
+        return data ? JSON.parse(data) : null;
+      })
+    );
+    const filtered = articles.filter(Boolean);
+    if (status) {
+      return new Response(JSON.stringify(filtered.filter(a => a.status === status)), {
         headers: { 'Content-Type': 'application/json' },
       });
     }
-    if (request.method === 'POST') {
+    return new Response(JSON.stringify(filtered), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Create article
+  if (path === '/api/articles' && request.method === 'POST') {
+    const body = await request.json();
+    const id = crypto.randomUUID();
+    const article: ArticleMeta = {
+      id,
+      slug: body.slug,
+      feishuDocId: body.feishuDocId,
+      feishuDocUrl: body.feishuDocUrl,
+      title: body.title,
+      categoryId: body.categoryId,
+      status: 'draft',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    await setWithIds(env.ARTICLES, 'articles', id, article);
+    if (body.seo) {
+      await env.ARTICLES.put(`articles/${id}/seo`, JSON.stringify({ ...body.seo, articleId: id }));
+    }
+    if (body.affiliate) {
+      await env.ARTICLES.put(`articles/${id}/affiliate`, JSON.stringify({ ...body.affiliate, articleId: id }));
+    }
+    if (body.content) {
+      await env.ARTICLES.put(`articles/${id}/content`, body.content);
+    }
+    return new Response(JSON.stringify(article), { status: 201 });
+  }
+
+  // Single article operations
+  const articleMatch = path.match(/^\/api\/articles\/([^/]+)(\/.*)?$/);
+  if (articleMatch) {
+    const id = articleMatch[1];
+    const subPath = articleMatch[2];
+
+    // GET single article with full data
+    if (request.method === 'GET' && !subPath) {
+      const meta = await env.ARTICLES.get(`articles/${id}/meta`);
+      if (!meta) {
+        return new Response(JSON.stringify({ error: 'Article not found' }), { status: 404 });
+      }
+      const seo = await env.ARTICLES.get(`articles/${id}/seo`);
+      const affiliate = await env.ARTICLES.get(`articles/${id}/affiliate`);
+      const content = await env.ARTICLES.get(`articles/${id}/content`);
+      return new Response(JSON.stringify({
+        ...JSON.parse(meta),
+        seo: seo ? JSON.parse(seo) : null,
+        affiliate: affiliate ? JSON.parse(affiliate) : null,
+        content: content || '',
+      }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // PUT update article
+    if (request.method === 'PUT') {
       const body = await request.json();
-      const id = crypto.randomUUID();
-      const article: ArticleMeta = {
-        id,
-        slug: body.slug,
-        feishuDocId: body.feishuDocId,
-        feishuDocUrl: body.feishuDocUrl,
-        title: body.title,
-        categoryId: body.categoryId,
-        status: 'draft',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      await setWithIds(env.ARTICLES, 'articles', id, article);
+      const existing = await env.ARTICLES.get(`articles/${id}/meta`);
+      if (!existing) {
+        return new Response(JSON.stringify({ error: 'Article not found' }), { status: 404 });
+      }
+      const article = { ...JSON.parse(existing), ...body, updatedAt: new Date().toISOString() };
+      await env.ARTICLES.put(`articles/${id}/meta`, JSON.stringify(article));
       if (body.seo) {
         await env.ARTICLES.put(`articles/${id}/seo`, JSON.stringify({ ...body.seo, articleId: id }));
       }
       if (body.affiliate) {
         await env.ARTICLES.put(`articles/${id}/affiliate`, JSON.stringify({ ...body.affiliate, articleId: id }));
       }
-      return new Response(JSON.stringify(article), { status: 201 });
+      if (body.content !== undefined) {
+        await env.ARTICLES.put(`articles/${id}/content`, body.content);
+      }
+      return new Response(JSON.stringify(article), { headers: { 'Content-Type': 'application/json' } });
+    }
+
+    // DELETE article
+    if (request.method === 'DELETE') {
+      await env.ARTICLES.delete(`articles/${id}/meta`);
+      await env.ARTICLES.delete(`articles/${id}/seo`);
+      await env.ARTICLES.delete(`articles/${id}/affiliate`);
+      await env.ARTICLES.delete(`articles/${id}/content`);
+      const ids = await getAllIds(env.ARTICLES, 'articles');
+      const newIds = ids.filter(i => i !== id);
+      await env.ARTICLES.put('articles/all_ids', JSON.stringify(newIds));
+      return new Response(JSON.stringify({ success: true }));
     }
   }
 
-  if (path.startsWith('/api/categories')) {
+  // Category pages - get articles by category slug
+  if (path.startsWith('/api/articles') && path.includes('category=')) {
+    const categorySlug = url.searchParams.get('category');
+    const status = url.searchParams.get('status') || 'published';
+    const ids = await getAllIds(env.ARTICLES, 'articles');
+    const articles = await Promise.all(
+      ids.map(async id => {
+        const data = await env.ARTICLES.get(`articles/${id}/meta`);
+        return data ? JSON.parse(data) : null;
+      })
+    );
+    const allArticles = articles.filter(Boolean);
+    const filteredIds = [];
+    for (const a of allArticles) {
+      if (status && a.status !== status) continue;
+      if (categorySlug) {
+        const cat = await env.CATEGORIES.get(`categories/${a.categoryId}`);
+        if (cat) {
+          const catObj = JSON.parse(cat);
+          if (catObj.slug !== categorySlug) continue;
+        }
+      }
+      filteredIds.push(a);
+    }
+    return new Response(JSON.stringify(filteredIds), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Get categories with article count
+  if (path === '/api/categories/with-count' && request.method === 'GET') {
+    const ids = await getAllIds(env.CATEGORIES, 'categories');
+    const categories = await Promise.all(
+      ids.map(async id => {
+        const data = await env.CATEGORIES.get(`categories/${id}`);
+        return data ? JSON.parse(data) : null;
+      })
+    );
+    const validCategories = categories.filter(Boolean);
+
+    // Get article counts for each category
+    const articleIds = await getAllIds(env.ARTICLES, 'articles');
+    const articles = await Promise.all(
+      articleIds.map(async id => {
+        const data = await env.ARTICLES.get(`articles/${id}/meta`);
+        return data ? JSON.parse(data) : null;
+      })
+    );
+    const publishedArticles = articles.filter(Boolean).filter((a: any) => a.status === 'published');
+
+    const categoriesWithCount = validCategories.map((cat: any) => ({
+      ...cat,
+      articleCount: publishedArticles.filter((a: any) => a.categoryId === cat.id).length,
+    }));
+
+    return new Response(JSON.stringify(categoriesWithCount), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Categories
+  if (path === '/api/categories') {
     if (request.method === 'GET') {
       const ids = await getAllIds(env.CATEGORIES, 'categories');
       const categories = await Promise.all(
@@ -177,6 +360,41 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     }
   }
 
+  // Single category
+  const categoryMatch = path.match(/^\/api\/categories\/([^/]+)$/);
+  if (categoryMatch) {
+    const id = categoryMatch[1];
+
+    if (request.method === 'GET') {
+      const data = await env.CATEGORIES.get(`categories/${id}`);
+      if (!data) {
+        return new Response(JSON.stringify({ error: 'Category not found' }), { status: 404 });
+      }
+      return new Response(data, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (request.method === 'PUT') {
+      const body = await request.json();
+      const existing = await env.CATEGORIES.get(`categories/${id}`);
+      if (!existing) {
+        return new Response(JSON.stringify({ error: 'Category not found' }), { status: 404 });
+      }
+      const category = { ...JSON.parse(existing), ...body };
+      await env.CATEGORIES.put(`categories/${id}`, JSON.stringify(category));
+      return new Response(JSON.stringify(category), { headers: { 'Content-Type': 'application/json' } });
+    }
+
+    if (request.method === 'DELETE') {
+      await env.CATEGORIES.delete(`categories/${id}`);
+      const ids = await getAllIds(env.CATEGORIES, 'categories');
+      const newIds = ids.filter(i => i !== id);
+      await env.CATEGORIES.put('categories/all_ids', JSON.stringify(newIds));
+      return new Response(JSON.stringify({ success: true }));
+    }
+  }
+
   if (path === '/api/feishu/docs') {
     const folderToken = url.searchParams.get('folder_token');
     if (!folderToken) {
@@ -184,6 +402,115 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     }
     const docs = await getFeishuDocs(env, folderToken);
     return new Response(JSON.stringify(docs), { headers: { 'Content-Type': 'application/json' } });
+  }
+
+  // Single Feishu doc content
+  if (path === '/api/feishu/doc' && request.method === 'GET') {
+    const docToken = url.searchParams.get('token');
+    if (!docToken) {
+      return new Response(JSON.stringify({ error: 'token required' }), { status: 400 });
+    }
+    try {
+      const content = await getFeishuDocContent(env, docToken);
+      return new Response(JSON.stringify(content), { headers: { 'Content-Type': 'application/json' } });
+    } catch (err) {
+      return new Response(JSON.stringify({ error: 'Failed to get doc content' }), { status: 500 });
+    }
+  }
+
+  // Sync single article from Feishu
+  if (path === '/api/articles/sync' && request.method === 'POST') {
+    const body = await request.json();
+    const { docToken, title, categoryId, slug } = body;
+
+    // Check if already synced by feishuDocId
+    const existingIds = await getAllIds(env.ARTICLES, 'articles');
+    for (const id of existingIds) {
+      const meta = await env.ARTICLES.get(`articles/${id}/meta`);
+      if (meta) {
+        const metaObj = JSON.parse(meta);
+        if (metaObj.feishuDocId === docToken) {
+          return new Response(JSON.stringify({ alreadyExists: true, article: metaObj }), {
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      }
+    }
+
+    // Create new article
+    const id = crypto.randomUUID();
+    const article: ArticleMeta = {
+      id,
+      slug: slug || `article-${Date.now()}`,
+      feishuDocId: docToken,
+      feishuDocUrl: `https://feishu.cn/doc/${docToken}`,
+      title: title || 'Untitled',
+      categoryId: categoryId || '',
+      status: 'draft',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    await setWithIds(env.ARTICLES, 'articles', id, article);
+    return new Response(JSON.stringify({ alreadyExists: false, article }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Single article operations
+  if (path.match(/^\/api\/articles\/([^/]+)$/)) {
+    const id = path.match(/^\/api\/articles\/([^/]+)$/)?.[1];
+    if (!id) {
+      return new Response(JSON.stringify({ error: 'Invalid article ID' }), { status: 400 });
+    }
+
+    if (request.method === 'GET') {
+      const meta = await env.ARTICLES.get(`articles/${id}/meta`);
+      if (!meta) {
+        return new Response(JSON.stringify({ error: 'Article not found' }), { status: 404 });
+      }
+      const seo = await env.ARTICLES.get(`articles/${id}/seo`);
+      const affiliate = await env.ARTICLES.get(`articles/${id}/affiliate`);
+      const content = await env.ARTICLES.get(`articles/${id}/content`);
+      return new Response(JSON.stringify({
+        ...JSON.parse(meta),
+        seo: seo ? JSON.parse(seo) : null,
+        affiliate: affiliate ? JSON.parse(affiliate) : null,
+        content: content || '',
+      }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (request.method === 'PUT') {
+      const body = await request.json();
+      const existing = await env.ARTICLES.get(`articles/${id}/meta`);
+      if (!existing) {
+        return new Response(JSON.stringify({ error: 'Article not found' }), { status: 404 });
+      }
+      const article = { ...JSON.parse(existing), ...body, updatedAt: new Date().toISOString() };
+      await env.ARTICLES.put(`articles/${id}/meta`, JSON.stringify(article));
+      if (body.seo) {
+        await env.ARTICLES.put(`articles/${id}/seo`, JSON.stringify({ ...body.seo, articleId: id }));
+      }
+      if (body.affiliate) {
+        await env.ARTICLES.put(`articles/${id}/affiliate`, JSON.stringify({ ...body.affiliate, articleId: id }));
+      }
+      if (body.content !== undefined) {
+        await env.ARTICLES.put(`articles/${id}/content`, body.content);
+      }
+      return new Response(JSON.stringify(article), { headers: { 'Content-Type': 'application/json' } });
+    }
+
+    if (request.method === 'DELETE') {
+      await env.ARTICLES.delete(`articles/${id}/meta`);
+      await env.ARTICLES.delete(`articles/${id}/seo`);
+      await env.ARTICLES.delete(`articles/${id}/affiliate`);
+      await env.ARTICLES.delete(`articles/${id}/content`);
+      const ids = await getAllIds(env.ARTICLES, 'articles');
+      const newIds = ids.filter(i => i !== id);
+      await env.ARTICLES.put('articles/all_ids', JSON.stringify(newIds));
+      return new Response(JSON.stringify({ success: true }));
+    }
   }
 
   if (path.startsWith('/api/github/write')) {
@@ -218,6 +545,143 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     if (request.method === 'PUT') {
       const body = await request.json();
       await env.NAVIGATION.put('nav_items', JSON.stringify(body.items || body));
+      return new Response(JSON.stringify({ success: true }));
+    }
+  }
+
+  // PAGES CRUD
+  if (path === '/api/pages') {
+    if (request.method === 'GET') {
+      const ids = await getAllIds(env.PAGES, 'pages');
+      const pages = await Promise.all(
+        ids.map(async id => {
+          const data = await env.PAGES.get(`pages/${id}`);
+          return data ? JSON.parse(data) : null;
+        })
+      );
+      return new Response(JSON.stringify(pages.filter(Boolean)), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    if (request.method === 'POST') {
+      const body = await request.json();
+      const id = crypto.randomUUID();
+      const page: PageMeta = {
+        id,
+        slug: body.slug,
+        title: body.title,
+        content: body.content || '',
+        status: body.status || 'draft',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        publishedAt: body.status === 'published' ? new Date().toISOString() : undefined,
+      };
+      await setWithIds(env.PAGES, 'pages', id, page);
+      return new Response(JSON.stringify(page), { status: 201 });
+    }
+  }
+
+  // Single page
+  const pageMatch = path.match(/^\/api\/pages\/([^/]+)$/);
+  if (pageMatch) {
+    const id = pageMatch[1];
+
+    if (request.method === 'GET') {
+      const data = await env.PAGES.get(`pages/${id}`);
+      if (!data) {
+        return new Response(JSON.stringify({ error: 'Page not found' }), { status: 404 });
+      }
+      return new Response(data, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (request.method === 'PUT') {
+      const body = await request.json();
+      const existing = await env.PAGES.get(`pages/${id}`);
+      if (!existing) {
+        return new Response(JSON.stringify({ error: 'Page not found' }), { status: 404 });
+      }
+      const page = { ...JSON.parse(existing), ...body, updatedAt: new Date().toISOString() };
+      if (body.status === 'published' && !page.publishedAt) {
+        page.publishedAt = new Date().toISOString();
+      }
+      await env.PAGES.put(`pages/${id}`, JSON.stringify(page));
+      return new Response(JSON.stringify(page), { headers: { 'Content-Type': 'application/json' } });
+    }
+
+    if (request.method === 'DELETE') {
+      await env.PAGES.delete(`pages/${id}`);
+      const ids = await getAllIds(env.PAGES, 'pages');
+      const newIds = ids.filter(i => i !== id);
+      await env.PAGES.put('pages/all_ids', JSON.stringify(newIds));
+      return new Response(JSON.stringify({ success: true }));
+    }
+  }
+
+  // AFFILIATES CRUD
+  if (path === '/api/affiliates') {
+    if (request.method === 'GET') {
+      const ids = await getAllIds(env.AFFILIATES, 'affiliates');
+      const affiliates = await Promise.all(
+        ids.map(async id => {
+          const data = await env.AFFILIATES.get(`affiliates/${id}`);
+          return data ? JSON.parse(data) : null;
+        })
+      );
+      return new Response(JSON.stringify(affiliates.filter(Boolean)), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    if (request.method === 'POST') {
+      const body = await request.json();
+      const id = crypto.randomUUID();
+      const affiliate: Affiliate = {
+        id,
+        platform: body.platform,
+        name: body.name,
+        url: body.url,
+        commission: body.commission,
+        status: body.status || 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      await setWithIds(env.AFFILIATES, 'affiliates', id, affiliate);
+      return new Response(JSON.stringify(affiliate), { status: 201 });
+    }
+  }
+
+  // Single affiliate
+  const affiliateMatch = path.match(/^\/api\/affiliates\/([^/]+)$/);
+  if (affiliateMatch) {
+    const id = affiliateMatch[1];
+
+    if (request.method === 'GET') {
+      const data = await env.AFFILIATES.get(`affiliates/${id}`);
+      if (!data) {
+        return new Response(JSON.stringify({ error: 'Affiliate not found' }), { status: 404 });
+      }
+      return new Response(data, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (request.method === 'PUT') {
+      const body = await request.json();
+      const existing = await env.AFFILIATES.get(`affiliates/${id}`);
+      if (!existing) {
+        return new Response(JSON.stringify({ error: 'Affiliate not found' }), { status: 404 });
+      }
+      const affiliate = { ...JSON.parse(existing), ...body, updatedAt: new Date().toISOString() };
+      await env.AFFILIATES.put(`affiliates/${id}`, JSON.stringify(affiliate));
+      return new Response(JSON.stringify(affiliate), { headers: { 'Content-Type': 'application/json' } });
+    }
+
+    if (request.method === 'DELETE') {
+      await env.AFFILIATES.delete(`affiliates/${id}`);
+      const ids = await getAllIds(env.AFFILIATES, 'affiliates');
+      const newIds = ids.filter(i => i !== id);
+      await env.AFFILIATES.put('affiliates/all_ids', JSON.stringify(newIds));
       return new Response(JSON.stringify({ success: true }));
     }
   }

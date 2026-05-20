@@ -41,7 +41,7 @@ export default function Settings() {
         setSettings({ ...defaultSettings, ...data });
       }
     } catch (err) {
-      console.error('Failed to load settings:', err);
+      console.error('加载设置失败:', err);
     } finally {
       setLoading(false);
     }
@@ -56,7 +56,7 @@ export default function Settings() {
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
-      alert('Failed to save: ' + (err as Error).message);
+      alert('保存失败: ' + (err as Error).message);
     } finally {
       setSaving(false);
     }
@@ -76,14 +76,14 @@ export default function Settings() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-white mb-6">Site Settings</h1>
+      <h1 className="text-2xl font-bold text-white mb-6">网站设置</h1>
 
       <form onSubmit={handleSave} className="space-y-6">
         <div className="bg-[var(--color-surface)] rounded-xl border border-white/10 p-6">
-          <h2 className="font-semibold text-white mb-4">General</h2>
+          <h2 className="font-semibold text-white mb-4">基本信息</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-gray-400 mb-2">Site Name</label>
+              <label className="block text-sm text-gray-400 mb-2">网站名称</label>
               <input
                 type="text"
                 name="siteName"
@@ -93,7 +93,7 @@ export default function Settings() {
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-400 mb-2">Site URL</label>
+              <label className="block text-sm text-gray-400 mb-2">网站 URL</label>
               <input
                 type="text"
                 name="siteUrl"
@@ -109,7 +109,7 @@ export default function Settings() {
           <h2 className="font-semibold text-white mb-4">SEO</h2>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm text-gray-400 mb-2">Homepage Title</label>
+              <label className="block text-sm text-gray-400 mb-2">首页标题</label>
               <input
                 type="text"
                 name="homeTitle"
@@ -119,7 +119,7 @@ export default function Settings() {
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-400 mb-2">Homepage Description</label>
+              <label className="block text-sm text-gray-400 mb-2">首页描述</label>
               <textarea
                 name="homeDescription"
                 value={settings.homeDescription}
@@ -132,10 +132,10 @@ export default function Settings() {
         </div>
 
         <div className="bg-[var(--color-surface)] rounded-xl border border-white/10 p-6">
-          <h2 className="font-semibold text-white mb-4">Footer</h2>
+          <h2 className="font-semibold text-white mb-4">页脚</h2>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm text-gray-400 mb-2">Copyright Text</label>
+              <label className="block text-sm text-gray-400 mb-2">版权信息</label>
               <input
                 type="text"
                 name="footerCopyright"
@@ -145,7 +145,7 @@ export default function Settings() {
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-400 mb-2">About Text</label>
+              <label className="block text-sm text-gray-400 mb-2">关于文本</label>
               <textarea
                 name="footerAbout"
                 value={settings.footerAbout}
@@ -155,7 +155,7 @@ export default function Settings() {
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-400 mb-2">Contact Email</label>
+              <label className="block text-sm text-gray-400 mb-2">联系邮箱</label>
               <input
                 type="email"
                 name="contactEmail"
@@ -168,7 +168,7 @@ export default function Settings() {
         </div>
 
         <div className="bg-[var(--color-surface)] rounded-xl border border-white/10 p-6">
-          <h2 className="font-semibold text-white mb-4">Affiliate Disclosure (FTC Required)</h2>
+          <h2 className="font-semibold text-white mb-4">推广披露（FTC 要求）</h2>
           <textarea
             name="affiliateDisclosure"
             value={settings.affiliateDisclosure}
@@ -184,10 +184,10 @@ export default function Settings() {
             disabled={saving}
             className="px-6 py-2.5 bg-[var(--color-primary)] hover:bg-[var(--color-primary)]/80 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
           >
-            {saving ? 'Saving...' : 'Save Settings'}
+            {saving ? '保存中...' : '保存设置'}
           </button>
           {saved && (
-            <span className="text-sm text-green-400">Settings saved!</span>
+            <span className="text-sm text-green-400">设置已保存！</span>
           )}
         </div>
       </form>

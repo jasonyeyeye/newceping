@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useLayoutEffect } from 'react';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Articles from './pages/Articles';
@@ -11,23 +11,32 @@ import Settings from './pages/Settings';
 import Layout from './components/Layout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const [authenticated] = useState(() => {
-    return sessionStorage.getItem('admin_auth') === 'true';
-  });
+  const [authenticated, setAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useLayoutEffect(() => {
+    const auth = sessionStorage.getItem('admin_auth') === 'true';
+    setAuthenticated(auth);
+    setLoading(false);
+  }, []);
+
+  if (loading) {
+    return null;
+  }
 
   if (!authenticated) {
-    return <Navigate to="/admin/login" replace />;
+    return <Navigate to="/login" replace />;
   }
   return <>{children}</>;
 }
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/">
       <Routes>
-        <Route path="/admin/login" element={<Login />} />
+        <Route path="/login" element={<Login />} />
         <Route
-          path="/admin"
+          path="/"
           element={
             <ProtectedRoute>
               <Layout />

@@ -27,7 +27,7 @@ export default function Navigation() {
       const nav = await getNavigation();
       setItems(nav);
     } catch (err) {
-      console.error('Failed to load navigation:', err);
+      console.error('加载导航失败:', err);
     } finally {
       setLoading(false);
     }
@@ -37,9 +37,9 @@ export default function Navigation() {
     setSaving(true);
     try {
       await updateNavigation(items);
-      alert('Navigation saved!');
+      alert('导航已保存！');
     } catch (err) {
-      alert('Failed to save: ' + (err as Error).message);
+      alert('保存失败: ' + (err as Error).message);
     } finally {
       setSaving(false);
     }
@@ -74,31 +74,31 @@ export default function Navigation() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-white">Navigation</h1>
+        <h1 className="text-2xl font-bold text-white">导航管理</h1>
         <div className="flex gap-3">
           <button
             onClick={loadNavigation}
             className="flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white text-sm font-medium rounded-lg transition-colors"
           >
             <RefreshCw className="w-4 h-4" />
-            Reset
+            重置
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
             className="flex items-center gap-2 px-4 py-2.5 bg-[var(--color-primary)] hover:bg-[var(--color-primary)]/80 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
           >
-            {saving ? 'Saving...' : 'Save Changes'}
+            {saving ? '保存中...' : '保存更改'}
           </button>
         </div>
       </div>
 
       {showForm && (
         <div className="bg-[var(--color-surface)] rounded-xl border border-white/10 p-6 mb-6">
-          <h2 className="font-semibold text-white mb-4">Add Menu Item</h2>
+          <h2 className="font-semibold text-white mb-4">添加菜单项</h2>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm text-gray-400 mb-2">Label</label>
+              <label className="block text-sm text-gray-400 mb-2">标签</label>
               <input
                 type="text"
                 value={form.label}
@@ -107,15 +107,15 @@ export default function Navigation() {
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-400 mb-2">Type</label>
+              <label className="block text-sm text-gray-400 mb-2">类型</label>
               <select
                 value={form.type}
                 onChange={e => setForm({ ...form, type: e.target.value as any })}
                 className="w-full px-4 py-2.5 bg-[var(--color-background)] border border-white/10 rounded-lg text-sm text-white focus:border-[var(--color-primary)] focus:outline-none"
               >
-                <option value="external">External Link</option>
-                <option value="category">Category</option>
-                <option value="page">Page</option>
+                <option value="external">外部链接</option>
+                <option value="category">分类</option>
+                <option value="page">页面</option>
               </select>
             </div>
             <div className="flex gap-3">
@@ -123,13 +123,13 @@ export default function Navigation() {
                 onClick={addItem}
                 className="px-4 py-2.5 bg-[var(--color-primary)] hover:bg-[var(--color-primary)]/80 text-white text-sm font-medium rounded-lg transition-colors"
               >
-                Add
+                添加
               </button>
               <button
                 onClick={() => setShowForm(false)}
                 className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white text-sm font-medium rounded-lg transition-colors"
               >
-                Cancel
+                取消
               </button>
             </div>
           </div>
@@ -141,10 +141,10 @@ export default function Navigation() {
           <thead>
             <tr className="border-b border-white/10 text-left text-xs text-gray-500 uppercase">
               <th className="px-4 py-3 font-medium w-10"></th>
-              <th className="px-4 py-3 font-medium">Label</th>
-              <th className="px-4 py-3 font-medium">Type</th>
-              <th className="px-4 py-3 font-medium">Target</th>
-              <th className="px-4 py-3 font-medium">Actions</th>
+              <th className="px-4 py-3 font-medium">标签</th>
+              <th className="px-4 py-3 font-medium">类型</th>
+              <th className="px-4 py-3 font-medium">目标</th>
+              <th className="px-4 py-3 font-medium">操作</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
@@ -156,7 +156,7 @@ export default function Navigation() {
                 <td className="px-4 py-3 text-white">{item.label}</td>
                 <td className="px-4 py-3">
                   <span className="inline-flex px-2 py-0.5 rounded-full text-xs bg-white/10 text-gray-300">
-                    {item.type}
+                    {item.type === 'external' ? '外部链接' : item.type === 'category' ? '分类' : '页面'}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-gray-500">

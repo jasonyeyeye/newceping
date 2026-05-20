@@ -1,34 +1,103 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import ArticleCard from '../../components/ArticleCard.astro';
-import { categoryData, articles } from '../category-data';
-
-export const prerender = true;
 
 export function getStaticPaths() {
-  return Object.keys(categoryData).map(cat => ({
-    params: { category: cat },
-    props: {
-      cat: categoryData[cat as keyof typeof categoryData],
-      articles: articles[cat as keyof typeof articles] || [],
-    },
+  const knownCategories = [
+    { slug: 'vibrators', name: 'Vibrators' },
+    { slug: 'smart-toys', name: 'Smart Toys' },
+    { slug: 'for-couples', name: 'For Couples' },
+    { slug: 'wellness', name: 'Wellness' },
+  ];
+
+  return knownCategories.map(cat => ({
+    params: { category: cat.slug },
+    props: { catName: cat.name },
   }));
 }
 
-const cat = Astro.props.cat;
-const categoryArticles = Astro.props.articles;
+const { catName } = Astro.props;
 ---
 
-<BaseLayout title={`${cat.name} Reviews`} description={cat.description}>
+<BaseLayout title={`${catName} Reviews`} description={`Honest reviews of the best ${catName.toLowerCase()}.`}>
   <section class="max-w-6xl mx-auto px-4 py-12">
-    <header class="mb-10">
-      <h1 class="text-3xl md:text-4xl font-bold text-white mb-2">{cat.name}</h1>
-      <p class="text-gray-400">{cat.description}</p>
-    </header>
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {categoryArticles.map(article => (
-        <ArticleCard {...article} />
-      ))}
+    <div id="category-content">
+      <header class="mb-10">
+        <h1 class="text-3xl md:text-4xl font-bold text-white mb-2">{catName}</h1>
+        <p class="text-sm text-gray-500 mt-2">Loading...</p>
+      </header>
     </div>
   </section>
 </BaseLayout>
+
+<script>
+  async function loadCategory() {
+    const pathParts = window.location.pathname.split('/').filter(Boolean);
+    const category = pathParts[0] || 'vibrators';
+    const apiBase = 'https://adult-toy-review-api.wangzczg-3e8.workers.dev';
+
+    const catNames: Record<string, string> = {
+      vibrators: 'Vibrators',
+      'smart-toys': 'Smart Toys',
+      'for-couples': 'For Couples',
+      wellness: 'Wellness',
+    };
+    const catName = catNames[category] || 'Articles';
+
+    try {
+      const [catsRes, artsRes] = await Promise.all([
+        fetch(`${apiBase}/api/categories`).then(r => r.json()),
+        fetch(`${apiBase}/api/articles?status=published`).then(r => r.json()),
+      ]);
+
+      const articles = artsRes.filter((a: any) => {
+        if (a.categoryId) {
+          const cat = catsRes.find((c: any) => c.id === a.categoryId);
+          if (cat && cat.slug === category) return true;
+        }
+        if (a.categorySlug === category) return true;
+        return false;
+      });
+
+      const contentEl = document.getElementById('category-content');
+      if (!contentEl) return;
+
+      let html = `<p class="text-sm text-gray-500 mt-2">${articles.length} articles</p>`;
+
+      if (articles.length === 0) {
+        html += '<p class="text-gray-500 mt-4">No articles in this category yet. Check back soon!</p>';
+      } else {
+        html += '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">';
+        for (const a of articles) {
+          const imgHtml = a.featuredImage
+            ? `<img src="${a.featuredImage}" alt="${a.title}" class="w-full h-48 object-cover" />`
+            : `<div class="w-full h-48 bg-gradient-to-br from-[var(--color-primary)]/20 to-[var(--color-secondary)]/20 flex items-center justify-center"><span class="text-4xl opacity-30">✦</span></div>`;
+          const dateHtml = a.publishedAt
+            ? `<p class="text-xs text-gray-500 mt-2">${new Date(a.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>`
+            : '';
+          html += `<a href="/${category}/${a.slug}" class="bg-[var(--color-surface)] rounded-xl overflow-hidden border border-white/10 hover:border-[var(--color-primary)] transition-all group">
+            ${imgHtml}
+            <div class="p-5">
+              <span class="text-xs text-[var(--color-primary)] uppercase tracking-wide">${catName}</span>
+              <h3 class="text-lg font-semibold text-white mt-1 mb-2 group-hover:text-[var(--color-primary)] transition-colors line-clamp-2">${a.title}</h3>
+              ${a.excerpt ? `<p class="text-sm text-gray-400 line-clamp-2">${a.excerpt}</p>` : ''}
+              ${dateHtml}
+            </div>
+          </a>`;
+        }
+        html += '</div>';
+      }
+
+      const headerEl = contentEl.querySelector('header');
+      if (headerEl) {
+        headerEl.innerHTML = `<h1 class="text-3xl md:text-4xl font-bold text-white mb-2">${catName}</h1>${html}`;
+      }
+    } catch (e) {
+      const contentEl = document.getElementById('category-content');
+      if (contentEl) {
+        contentEl.innerHTML = '<p class="text-gray-500">Failed to load. Please try again later.</p>';
+      }
+    }
+  }
+
+  loadCategory();
+</script>
