@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import ArticleLayout from '../../layouts/ArticleLayout.astro';
 
 export async function getStaticPaths() {
   const apiBase = 'https://adult-toy-review-api.wangzczg-3e8.workers.dev';
@@ -22,7 +23,6 @@ export async function getStaticPaths() {
     let catSlug = article.categorySlug || 'vibrators';
     let catName = article.category || 'Article';
     
-    // Try to find category info
     const cat = categories.find((c: any) => c.id === article.categoryId);
     if (cat) {
       catSlug = cat.slug;
@@ -40,6 +40,10 @@ export async function getStaticPaths() {
 
 const { article, category } = Astro.props;
 
+// Raw content string for reading time and TOC generation
+const rawContent = article.content || '';
+
+// Render markdown to HTML (simplified renderer for the slot)
 function renderMarkdown(content: string): string {
   if (!content) return '';
   
@@ -68,51 +72,26 @@ const date = article.publishedAt
 
 const htmlContent = renderMarkdown(article.content || '');
 
-let affiliateHtml = '';
-if (article.affiliate?.links?.length > 0) {
-  const linksHtml = article.affiliate.links.map((link: any) => 
-    `<a href="${link.url}" target="_blank" rel="noopener sponsored" class="inline-flex items-center gap-2 px-4 py-2 bg-[var(--color-primary)] hover:bg-[var(--color-primary)]/80 text-white text-sm font-medium rounded-lg transition-colors"><span>Buy on ${link.platform}</span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg></a>`
-  ).join('');
-  affiliateHtml = `<div class="mt-12 bg-[var(--color-surface)] rounded-xl p-6 border border-[var(--color-primary)]/30"><h3 class="font-semibold text-white mb-3">Where to Buy</h3><div class="flex flex-wrap gap-3">${linksHtml}</div><p class="text-xs text-gray-500 mt-3">* As an affiliate, we may earn a commission from qualifying purchases at no additional cost to you.</p></div>`;
-}
+// Build affiliate links for ArticleLayout
+const affiliateLinks = (article.affiliate?.links || []).map((link: any) => ({
+  platform: link.platform,
+  url: link.url,
+  anchorText: `Buy on ${link.platform}`,
+}));
 ---
 
-<BaseLayout 
-  title={`${article.title} — AdultToyReview`} 
+<ArticleLayout
+  title={article.title}
   description={article.excerpt || article.title}
-  ogImage={article.featuredImage}
+  category={category.name}
+  categorySlug={category.slug}
+  featuredImage={article.featuredImage}
+  publishedAt={article.publishedAt}
+  author={article.author || 'The Review Team'}
+  content={rawContent}
+  affiliateLinks={affiliateLinks}
 >
-  <article class="max-w-4xl mx-auto px-4 py-12">
-    <header class="mb-10">
-      <a href={`/${category.slug}`} class="text-xs font-medium text-[var(--color-primary)] uppercase tracking-wider hover:underline">
-        {category.name}
-      </a>
-      <h1 class="text-3xl md:text-4xl font-bold text-white mt-3 mb-4 leading-tight">{article.title}</h1>
-      <div class="flex items-center gap-4 text-sm text-gray-500">
-        {date ? `<span>${date}</span>` : ''}
-        <span>By {article.author || 'The Review Team'}</span>
-      </div>
-    </header>
-
-    {article.featuredImage && (
-      <div class="aspect-video rounded-xl overflow-hidden mb-10">
-        <img src={article.featuredImage} alt={article.title} class="w-full h-full object-cover" />
-      </div>
-    )}
-
-    <div class="prose prose-invert max-w-none">
-      <Fragment set:html={htmlContent} />
-    </div>
-
-    <Fragment set:html={affiliateHtml} />
-
-    <footer class="mt-12 pt-8 border-t border-white/10">
-      <a href={`/${category.slug}`} class="text-sm text-gray-400 hover:text-white flex items-center gap-2">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-        </svg>
-        Back to {category.name}
-      </a>
-    </footer>
-  </article>
-</BaseLayout>
+  <div class="prose prose-invert max-w-none">
+    <Fragment set:html={htmlContent} />
+  </div>
+</ArticleLayout>

@@ -195,7 +195,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     const ids = await getAllIds(env.ARTICLES, 'articles');
     const articles = await Promise.all(
       ids.map(async id => {
-        const data = await env.ARTICLES.get(`articles/${id}/meta`);
+        const data = await env.ARTICLES.get(`articles/${id}`);
         return data ? JSON.parse(data) : null;
       })
     );
@@ -246,7 +246,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
 
     // GET single article with full data
     if (request.method === 'GET' && !subPath) {
-      const meta = await env.ARTICLES.get(`articles/${id}/meta`);
+      const meta = await env.ARTICLES.get(`articles/${id}`);
       if (!meta) {
         return new Response(JSON.stringify({ error: 'Article not found' }), { status: 404 });
       }
@@ -266,12 +266,12 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     // PUT update article
     if (request.method === 'PUT') {
       const body = await request.json();
-      const existing = await env.ARTICLES.get(`articles/${id}/meta`);
+      const existing = await env.ARTICLES.get(`articles/${id}`);
       if (!existing) {
         return new Response(JSON.stringify({ error: 'Article not found' }), { status: 404 });
       }
       const article = { ...JSON.parse(existing), ...body, updatedAt: new Date().toISOString() };
-      await env.ARTICLES.put(`articles/${id}/meta`, JSON.stringify(article));
+      await env.ARTICLES.put(`articles/${id}`, JSON.stringify(article));
       if (body.seo) {
         await env.ARTICLES.put(`articles/${id}/seo`, JSON.stringify({ ...body.seo, articleId: id }));
       }
@@ -286,7 +286,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
 
     // DELETE article
     if (request.method === 'DELETE') {
-      await env.ARTICLES.delete(`articles/${id}/meta`);
+      await env.ARTICLES.delete(`articles/${id}`);
       await env.ARTICLES.delete(`articles/${id}/seo`);
       await env.ARTICLES.delete(`articles/${id}/affiliate`);
       await env.ARTICLES.delete(`articles/${id}/content`);
@@ -304,7 +304,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     const ids = await getAllIds(env.ARTICLES, 'articles');
     const articles = await Promise.all(
       ids.map(async id => {
-        const data = await env.ARTICLES.get(`articles/${id}/meta`);
+        const data = await env.ARTICLES.get(`articles/${id}`);
         return data ? JSON.parse(data) : null;
       })
     );
@@ -341,7 +341,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     const articleIds = await getAllIds(env.ARTICLES, 'articles');
     const articles = await Promise.all(
       articleIds.map(async id => {
-        const data = await env.ARTICLES.get(`articles/${id}/meta`);
+        const data = await env.ARTICLES.get(`articles/${id}`);
         return data ? JSON.parse(data) : null;
       })
     );
@@ -446,7 +446,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     // Check if already synced by feishuDocId
     const existingIds = await getAllIds(env.ARTICLES, 'articles');
     for (const id of existingIds) {
-      const meta = await env.ARTICLES.get(`articles/${id}/meta`);
+      const meta = await env.ARTICLES.get(`articles/${id}`);
       if (meta) {
         const metaObj = JSON.parse(meta);
         if (metaObj.feishuDocId === docToken) {
@@ -484,7 +484,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     }
 
     if (request.method === 'GET') {
-      const meta = await env.ARTICLES.get(`articles/${id}/meta`);
+      const meta = await env.ARTICLES.get(`articles/${id}`);
       if (!meta) {
         return new Response(JSON.stringify({ error: 'Article not found' }), { status: 404 });
       }
@@ -503,12 +503,12 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
 
     if (request.method === 'PUT') {
       const body = await request.json();
-      const existing = await env.ARTICLES.get(`articles/${id}/meta`);
+      const existing = await env.ARTICLES.get(`articles/${id}`);
       if (!existing) {
         return new Response(JSON.stringify({ error: 'Article not found' }), { status: 404 });
       }
       const article = { ...JSON.parse(existing), ...body, updatedAt: new Date().toISOString() };
-      await env.ARTICLES.put(`articles/${id}/meta`, JSON.stringify(article));
+      await env.ARTICLES.put(`articles/${id}`, JSON.stringify(article));
       if (body.seo) {
         await env.ARTICLES.put(`articles/${id}/seo`, JSON.stringify({ ...body.seo, articleId: id }));
       }
@@ -522,7 +522,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     }
 
     if (request.method === 'DELETE') {
-      await env.ARTICLES.delete(`articles/${id}/meta`);
+      await env.ARTICLES.delete(`articles/${id}`);
       await env.ARTICLES.delete(`articles/${id}/seo`);
       await env.ARTICLES.delete(`articles/${id}/affiliate`);
       await env.ARTICLES.delete(`articles/${id}/content`);

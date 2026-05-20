@@ -32,6 +32,17 @@ const {
     <meta property="og:image" content={ogImage} />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "AdultToyReview",
+      "url": "https://master.adult-toy-review.pages.dev",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://master.adult-toy-review.pages.dev/search?q={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    })} />
   </head>
   <body>
     <Header />
