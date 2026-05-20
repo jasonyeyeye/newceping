@@ -208,6 +208,20 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     }
   }
 
+  if (path === '/api/navigation') {
+    if (request.method === 'GET') {
+      const nav = await env.NAVIGATION.get('nav_items');
+      return new Response(nav || '[]', {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    if (request.method === 'PUT') {
+      const body = await request.json();
+      await env.NAVIGATION.put('nav_items', JSON.stringify(body.items || body));
+      return new Response(JSON.stringify({ success: true }));
+    }
+  }
+
   return new Response(JSON.stringify({ error: 'Not found' }), { status: 404 });
 }
 
