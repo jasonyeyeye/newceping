@@ -8,6 +8,7 @@ interface Env {
   PAGES: KVNamespace;
   AFFILIATES: KVNamespace;
   SITE_SETTINGS: KVNamespace;
+  MEDIA: KVNamespace;
   FEISHU_APP_ID: string;
   FEISHU_APP_SECRET: string;
   GITHUB_TOKEN: string;
@@ -739,6 +740,67 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
       const ids = await getAllIds(env.AFFILIATES, 'affiliates');
       const newIds = ids.filter(i => i !== id);
       await env.AFFILIATES.put('affiliates/all_ids', JSON.stringify(newIds));
+      return new Response(JSON.stringify({ success: true }));
+    }
+  }
+
+  // ========== MEDIA API ==========
+  // GET /api/media - List all media items
+  if (path === '/api/media' && request.method === 'GET') {
+    const ids = await getAllIds(env.MEDIA, 'media');
+    const items = await Promise.all(
+      ids.map(async id => {
+        const data = await env.MEDIA.get(`media/${id}`);
+        return data ? JSON.parse(data) : null;
+      })
+    );
+    return new Response(JSON.stringify(items.filter(Boolean)), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  // POST /api/media - Upload media (returns simulated URL)
+  if (path === '/api/media' && request.method === 'POST') {
+    const formData = await request.formData();
+    const file = formData.get('file') as File;
+    if (!file) {
+      return new Response(JSON.stringify({ error: 'No file provided' }), { status: 400 });
+    }
+    const id = crypto.randomUUID();
+    const mediaItem = {
+      id,
+      name: file.name,
+      url: `https://adult-toy-review.pages.dev/media/${id}/${file.name}`,
+      type: file.type,
+      size: file.size,
+      createdAt: new Date().toISOString(),
+    };
+    await env.MEDIA.put(`media/${id}`, JSON.stringify(mediaItem));
+    await addId(env.MEDIA, 'media', id);
+    return new Response(JSON.stringify(mediaItem), { status: 201 });
+  }
+
+  // Single media operations
+  const mediaMatch = path.match(/^\/api\/media\/([^/]+)$/);
+  if (mediaMatch) {
+    const id = mediaMatch[1];
+
+
+    // GET single media item
+    if (request.method === 'GET') {
+      const data = await env.MEDIA.get(`media/${id}`);
+      if (!data) {
+        return new Response(JSON.stringify({ error: 'Media not found' }), { status: 404 });
+      }
+      return new Response(data, { headers: { 'Content-Type': 'application/json' } });
+    }
+
+    // DELETE media item
+    if (request.method === 'DELETE') {
+      await env.MEDIA.delete(`media/${id}`);
+      const ids = await getAllIds(env.MEDIA, 'media');
+      const newIds = ids.filter(i => i !== id);
+      await env.MEDIA.put('media/all_ids', JSON.stringify(newIds));
       return new Response(JSON.stringify({ success: true }));
     }
   }

@@ -30,9 +30,13 @@ const {
 } = Astro.props;
 
 // Calculate reading time: ceil(wordCount / 200)
+// Strip HTML tags first for accurate word count
 function calcReadingTime(md: string): number {
-  const words = md.trim().split(/\s+/).filter(Boolean).length;
-  return Math.ceil(words / 200);
+  if (!md) return 0;
+  // Remove HTML tags to get accurate word count
+  const textOnly = md.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  const words = textOnly.split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.ceil(words / 200));
 }
 
 const readingTime = calcReadingTime(content);
