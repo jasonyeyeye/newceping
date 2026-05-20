@@ -7,8 +7,9 @@
   },
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build && npm run build:admin",
+    "build": "astro build && npm run build:admin && npm run copy:admin",
     "build:admin": "cd admin && npm run build",
+    "copy:admin": "mkdir -p public/admin && cp -r dist/admin/* public/admin/",
     "preview": "astro preview",
     "astro": "astro",
     "generate-types": "wrangler types"
