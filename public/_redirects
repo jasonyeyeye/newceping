@@ -1,5 +1,5 @@
-/admin /admin-panel/index.html 200
-/admin/* /admin-panel/index.html 200
+/admin /admin/index.html 200
+/admin/* /admin/index.html 200
 
 # Affiliate short link redirect (proxies to worker)
 /affiliate/go/* https://adult-toy-review-api.wangzczg-3e8.workers.dev/affiliate/go/:splat 200
