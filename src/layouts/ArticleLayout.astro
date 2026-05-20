@@ -1,0 +1,100 @@
+---
+import BaseLayout from './BaseLayout.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+  category: string;
+  categorySlug: string;
+  featuredImage?: string;
+  publishedAt?: string;
+  author?: string;
+  affiliateLinks?: Array<{
+    platform: string;
+    url: string;
+    anchorText: string;
+  }>;
+}
+
+const {
+  title,
+  description,
+  category,
+  categorySlug,
+  featuredImage,
+  publishedAt,
+  author = 'The Review Team',
+  affiliateLinks = []
+} = Astro.props;
+
+const formattedDate = publishedAt
+  ? new Date(publishedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  : null;
+---
+
+<BaseLayout title={title} description={description} ogImage={featuredImage}>
+  <article class="max-w-4xl mx-auto px-4 py-12">
+    <!-- Article Header -->
+    <header class="mb-10">
+      <div class="flex items-center gap-2 mb-4">
+        <a href={`/${categorySlug}`} class="text-xs font-medium text-[var(--color-primary)] uppercase tracking-wider hover:underline">
+          {category}
+        </a>
+      </div>
+      <h1 class="text-3xl md:text-4xl font-bold text-white mb-4 leading-tight">{title}</h1>
+      <div class="flex items-center gap-4 text-sm text-gray-500">
+        {formattedDate && <span>{formattedDate}</span>}
+        <span>By {author}</span>
+      </div>
+    </header>
+
+    {featuredImage && (
+      <div class="aspect-video rounded-xl overflow-hidden mb-10">
+        <img
+          src={featuredImage}
+          alt={title}
+          class="w-full h-full object-cover"
+        />
+      </div>
+    )}
+
+    <!-- Article Body (slot for content) -->
+    <div class="prose prose-invert max-w-none">
+      <slot />
+    </div>
+
+    <!-- Affiliate CTA -->
+    {affiliateLinks.length > 0 && (
+      <div class="mt-12 bg-[var(--color-surface)] rounded-xl p-6 border border-[var(--color-primary)]/30">
+        <h3 class="font-semibold text-white mb-3">Where to Buy</h3>
+        <div class="flex flex-wrap gap-3">
+          {affiliateLinks.map(link => (
+            <a
+              href={link.url}
+              target="_blank"
+              rel="noopener sponsored"
+              class="inline-flex items-center gap-2 px-4 py-2 bg-[var(--color-primary)] hover:bg-[var(--color-primary)]/80 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              <span>Buy on {link.platform}</span>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+          ))}
+        </div>
+        <p class="text-xs text-gray-500 mt-3">
+          * As an affiliate, we may earn a commission from qualifying purchases at no additional cost to you.
+        </p>
+      </div>
+    )}
+
+    <!-- Article Footer -->
+    <footer class="mt-12 pt-8 border-t border-white/10">
+      <div class="flex items-center justify-between">
+        <a href={`/${categorySlug}`} class="text-sm text-gray-400 hover:text-white">
+          ← Back to {category}
+        </a>
+      </div>
+    </footer>
+  </article>
+</BaseLayout>

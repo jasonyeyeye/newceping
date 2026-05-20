@@ -1,0 +1,55 @@
+---
+interface Props {
+  slug: string;
+  title: string;
+  excerpt?: string;
+  category: string;
+  categorySlug: string;
+  featuredImage?: string;
+  publishedAt?: string;
+}
+
+const { slug, title, excerpt, category, categorySlug, featuredImage, publishedAt } = Astro.props;
+
+const formattedDate = publishedAt
+  ? new Date(publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  : null;
+---
+
+<article class="bg-[var(--color-surface)] rounded-xl overflow-hidden border border-white/10 hover:border-[var(--color-primary)]/50 transition-all group">
+  <a href={`/${categorySlug}/${slug}`} class="block">
+    {featuredImage ? (
+      <div class="aspect-video overflow-hidden">
+        <img
+          src={featuredImage}
+          alt={title}
+          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          loading="lazy"
+        />
+      </div>
+    ) : (
+      <div class="aspect-video bg-gradient-to-br from-[var(--color-primary)]/20 to-[var(--color-secondary)]/20 flex items-center justify-center">
+        <span class="text-4xl opacity-30">✦</span>
+      </div>
+    )}
+    <div class="p-5">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="text-xs font-medium text-[var(--color-primary)] uppercase tracking-wider">
+          {category}
+        </span>
+        {formattedDate && (
+          <>
+            <span class="text-gray-600">·</span>
+            <span class="text-xs text-gray-500">{formattedDate}</span>
+          </>
+        )}
+      </div>
+      <h3 class="font-semibold text-lg text-white group-hover:text-[var(--color-primary)] transition-colors mb-2 line-clamp-2">
+        {title}
+      </h3>
+      {excerpt && (
+        <p class="text-sm text-gray-400 line-clamp-2">{excerpt}</p>
+      )}
+    </div>
+  </a>
+</article>

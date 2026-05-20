@@ -1,0 +1,102 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ArticleCard from '../components/ArticleCard.astro';
+
+// Demo articles for initial build
+const articles = [
+  {
+    slug: 'best-vibrators-2024',
+    title: 'Best Vibrators of 2024 — Honest, In-Depth Reviews',
+    excerpt: 'After testing 50+ vibrators over 6 months, here are our top picks for every budget and experience level.',
+    category: 'Vibrators',
+    categorySlug: 'vibrators',
+    featuredImage: 'https://images.unsplash.com/photo-1571771894821-ce6d8902fecd?w=600&q=80',
+    publishedAt: '2024-01-15',
+  },
+  {
+    slug: 'lovense-lemay-review',
+    title: 'Lovense Lemay Review — Air Pulse Technology Meets App Control',
+    excerpt: 'The Lemay combines Satisfyer\'s proven air pulse tech with Lovense\'s excellent app ecosystem. Here\'s our full verdict.',
+    category: 'Smart Toys',
+    categorySlug: 'smart-toys',
+    featuredImage: 'https://images.unsplash.com/photo-1519834785169-98be25ec3f84?w=600&q=80',
+    publishedAt: '2024-01-10',
+  },
+  {
+    slug: 'we-vibe-chorus-review',
+    title: 'We-Vibe Chorus Review — The Ultimate Couples Toy?',
+    excerpt: 'We-Vibe\'s flagship couples toy promises remote-controlled intimacy. We tested it over 3 months as a couple.',
+    category: 'For Couples',
+    categorySlug: 'for-couples',
+    featuredImage: 'https://images.unsplash.com/photo-1544063751-fa5c8a6e1d2a?w=600&q=80',
+    publishedAt: '2024-01-05',
+  },
+  {
+    slug: 'sexual-wellness-guide',
+    title: 'Sexual Wellness 101 — Everything You Need to Know About Safe Toy Use',
+    excerpt: 'A comprehensive guide to materials, cleaning, storage, and best practices for adult toy use.',
+    category: 'Wellness',
+    categorySlug: 'wellness',
+    featuredImage: 'https://images.unsplash.com/photo-1559757175-5700dde675bc?w=600&q=80',
+    publishedAt: '2024-01-01',
+  },
+];
+
+const categories = [
+  { name: 'Vibrators', slug: 'vibrators', count: 24 },
+  { name: 'Smart Toys', slug: 'smart-toys', count: 18 },
+  { name: 'For Couples', slug: 'for-couples', count: 15 },
+  { name: 'Wellness', slug: 'wellness', count: 12 },
+];
+---
+
+<BaseLayout title="AdultToyReview — Honest Adult Product Reviews">
+  <!-- Hero -->
+  <section class="bg-gradient-to-b from-[var(--color-surface)] to-[var(--color-background)] py-16">
+    <div class="max-w-6xl mx-auto px-4 text-center">
+      <h1 class="text-4xl md:text-5xl font-bold text-white mb-4">
+        Find the <span class="text-[var(--color-primary)]">Best Adult Products</span>
+      </h1>
+      <p class="text-lg text-gray-400 max-w-2xl mx-auto">
+        Honest, in-depth reviews you can trust. We buy and test every product ourselves — no sponsors, no BS.
+      </p>
+    </div>
+  </section>
+
+  <!-- Categories -->
+  <section class="max-w-6xl mx-auto px-4 py-12">
+    <h2 class="text-2xl font-bold text-white mb-6">Shop by Category</h2>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {categories.map(cat => (
+        <a
+          href={`/${cat.slug}`}
+          class="bg-[var(--color-surface)] rounded-xl p-5 border border-white/10 hover:border-[var(--color-primary)] transition-all text-center group"
+        >
+          <span class="text-2xl mb-2 block">{cat.name === 'Vibrators' ? '✦' : cat.name === 'Smart Toys' ? '📱' : cat.name === 'For Couples' ? '💑' : '♡'}</span>
+          <span class="font-medium text-white group-hover:text-[var(--color-primary)]">{cat.name}</span>
+          <span class="block text-xs text-gray-500 mt-1">{cat.count} reviews</span>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <!-- Latest Reviews -->
+  <section class="max-w-6xl mx-auto px-4 py-12">
+    <h2 class="text-2xl font-bold text-white mb-6">Latest Reviews</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {articles.map(article => (
+        <ArticleCard {...article} />
+      ))}
+    </div>
+  </section>
+
+  <!-- Disclosure -->
+  <section class="max-w-6xl mx-auto px-4 py-8">
+    <div class="bg-[var(--color-surface)] rounded-xl p-6 border border-white/10">
+      <h3 class="font-semibold text-white mb-2">Our Review Process</h3>
+      <p class="text-sm text-gray-400 leading-relaxed">
+        Every product on this site is purchased at full retail price. We don't accept free samples from manufacturers. Our reviews are based on real, hands-on testing by our team. As an affiliate, we may earn a commission from qualifying purchases — but this never influences our ratings or recommendations.
+      </p>
+    </div>
+  </section>
+</BaseLayout>
