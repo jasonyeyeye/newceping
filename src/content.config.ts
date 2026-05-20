@@ -3,7 +3,7 @@ import { defineCollection, z } from 'astro:content';
 import { glob } from 'astro/loaders';
 
 const blog = defineCollection({
-  loader: glob({ pattern: '*.md', path: './src/content/blog' }),
+  loader: glob({ pattern: 'best-vibrators-2024.md', path: './src/content/blog' }),
   schema: z.object({
     title: z.string(),
     description: z.string().optional(),
