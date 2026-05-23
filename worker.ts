@@ -907,7 +907,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
       createdAt: new Date().toISOString(),
     };
     await env.MEDIA.put(`media/${id}`, JSON.stringify(mediaItem));
-    await addId(env.MEDIA, 'media', id);
+    await setWithIds(env.MEDIA, 'media', id, mediaItem);
     return new Response(JSON.stringify(mediaItem), { status: 201 });
   }
 
