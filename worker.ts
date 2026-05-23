@@ -366,6 +366,8 @@ async function setWithIds(kv: KVNamespace, prefix: string, id: string, data: obj
 // Router
 async function handleRequest(request: Request, env: Env): Promise<Response> {
   validateEnvironment(env);
+  const url = new URL(request.url);
+  const path = url.pathname;
 
   // ======== AUTH ENDPOINTS ========
   // POST /api/auth/login
@@ -474,9 +476,6 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
       status: 201, headers: { 'Content-Type': 'application/json' }
     });
   }
-
-  const url = new URL(request.url);
-  const path = url.pathname;
 
   // Rate limiting - 100 requests per minute per IP for write operations
   const writeMethods = ['POST', 'PUT', 'DELETE'];
