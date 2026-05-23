@@ -6,14 +6,29 @@ interface RequestOptions {
   body?: object;
 }
 
+// Retry logic: only retry on 5xx errors (server errors), not 4xx (client errors)
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3): Promise<Response> {
+  for (let i = 0; i <= retries; i++) {
+    const res = await fetch(url, options);
+    if (res.ok || (res.status >= 400 && res.status < 500)) {
+      return res; // Success or client error - don't retry
+    }
+    // 5xx - server error, retry
+    if (i < retries) {
+      await new Promise(r => setTimeout(r, 100 * Math.pow(2, i))); // Exponential backoff: 100, 200, 400ms
+    }
+  }
+  return fetch(url, options); // Final attempt
+}
+
 export async function apiGet(path: string) {
-  const res = await fetch(`${API_BASE}${path}`);
+  const res = await fetchWithRetry(`${API_BASE}${path}`);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
 
 export async function apiPost(path: string, data?: object, options: RequestOptions = {}) {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetchWithRetry(`${API_BASE}${path}`, {
     method: options.method || 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: data ? JSON.stringify(data) : undefined,
