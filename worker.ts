@@ -193,10 +193,67 @@ async function createOrUpdateFile(env: Env, path: string, content: string, messa
   return response.json();
 }
 
-// KV helpers
+// KV helpers - with LRU cache for read-heavy workloads
+interface CacheEntry<T> { data: T; expires: number; }
+
+class KVCache {
+  private cache = new Map<string, CacheEntry<any>>();
+  private maxSize = 200;
+  private defaultTTL = 30000; // 30s default
+
+  get<T>(key: string): T | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expires) {
+      this.cache.delete(key);
+      return null;
+    }
+    // Move to end (most recently used)
+    this.cache.delete(key);
+    this.cache.set(key, entry);
+    return entry.data as T;
+  }
+
+  set<T>(key: string, data: T, ttl = this.defaultTTL): void {
+    if (this.cache.size >= this.maxSize) {
+      // Delete oldest entry (first in Map iteration order)
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey) this.cache.delete(firstKey);
+    }
+    this.cache.set(key, { data, expires: Date.now() + ttl });
+  }
+
+  invalidate(key: string): void { this.cache.delete(key); }
+  clear(): void { this.cache.clear(); }
+}
+
+// Per-KV-namespace caches (shared across requests in same isolate)
+const articleCache = new KVCache();
+const categoryCache = new KVCache();
+const navCache = new KVCache();
+const pageCache = new KVCache();
+const affiliateCache = new KVCache();
+const settingsCache = new KVCache();
+
+function getCacheForPrefix(prefix: string): KVCache {
+  switch (prefix) {
+    case 'articles': return articleCache;
+    case 'categories': return categoryCache;
+    case 'navigation': return navCache;
+    case 'pages': return pageCache;
+    case 'affiliates': return affiliateCache;
+    default: return settingsCache;
+  }
+}
+
 async function getAllIds(kv: KVNamespace, prefix: string): Promise<string[]> {
+  const cache = getCacheForPrefix(prefix);
+  const cached = cache.get<string[]>(`ids:${prefix}`);
+  if (cached) return cached;
   const ids = await kv.get(`${prefix}/all_ids`);
-  return ids ? JSON.parse(ids) : [];
+  const result = ids ? JSON.parse(ids) : [];
+  cache.set(`ids:${prefix}`, result, 15000); // 15s cache
+  return result;
 }
 
 async function setWithIds(kv: KVNamespace, prefix: string, id: string, data: object) {
@@ -206,6 +263,8 @@ async function setWithIds(kv: KVNamespace, prefix: string, id: string, data: obj
     ids.push(id);
     await kv.put(`${prefix}/all_ids`, JSON.stringify(ids));
   }
+  // Invalidate cache
+  getCacheForPrefix(prefix).invalidate(`ids:${prefix}`);
 }
 
 // Router
