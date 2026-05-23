@@ -365,6 +365,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
       updatedAt: new Date().toISOString(),
     };
     await setWithIds(env.ARTICLES, 'articles', id, article);
+    articleCache.invalidate('ids:articles');
     if (body.seo) {
       await env.ARTICLES.put(`articles/${id}/seo`, JSON.stringify({ ...body.seo, articleId: id }));
     }
@@ -411,6 +412,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
       }
       const article = { ...JSON.parse(existing), ...body, updatedAt: new Date().toISOString() };
       await env.ARTICLES.put(`articles/${id}`, JSON.stringify(article));
+      articleCache.invalidate('ids:articles');
       if (body.seo) {
         await env.ARTICLES.put(`articles/${id}/seo`, JSON.stringify({ ...body.seo, articleId: id }));
       }
@@ -648,6 +650,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
       }
       const article = { ...JSON.parse(existing), ...body, updatedAt: new Date().toISOString() };
       await env.ARTICLES.put(`articles/${id}`, JSON.stringify(article));
+      articleCache.invalidate('ids:articles');
       if (body.seo) {
         await env.ARTICLES.put(`articles/${id}/seo`, JSON.stringify({ ...body.seo, articleId: id }));
       }
