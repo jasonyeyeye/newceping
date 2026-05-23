@@ -16,13 +16,46 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useLayoutEffect(() => {
-    const auth = sessionStorage.getItem('admin_auth') === 'true';
-    setAuthenticated(auth);
-    setLoading(false);
+    const token = sessionStorage.getItem('admin_token');
+    if (!token) {
+      setAuthenticated(false);
+      setLoading(false);
+      return;
+    }
+
+    // Verify token with server
+    fetch('/api/auth/verify', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => {
+        if (res.ok) {
+          setAuthenticated(true);
+          // Update stored user data
+          res.json().then(data => {
+            if (data.user) {
+              sessionStorage.setItem('admin_user', JSON.stringify(data.user));
+            }
+          });
+        } else {
+          sessionStorage.removeItem('admin_token');
+          sessionStorage.removeItem('admin_user');
+          sessionStorage.removeItem('admin_auth');
+        }
+      })
+      .catch(() => {
+        sessionStorage.removeItem('admin_token');
+        sessionStorage.removeItem('admin_user');
+        sessionStorage.removeItem('admin_auth');
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--color-background)]">
+        <div className="text-gray-500">加载中...</div>
+      </div>
+    );
   }
 
   if (!authenticated) {

@@ -162,3 +162,54 @@ export async function deleteAffiliate(id: string) {
 export async function trackAffiliateClick(id: string) {
   return apiPost(`/api/affiliates/track/${id}`);
 }
+
+// Auth helpers
+export function getStoredToken(): string | null {
+  return sessionStorage.getItem('admin_token');
+}
+
+export function getStoredUser(): { id: string; username: string; role: string } | null {
+  const user = sessionStorage.getItem('admin_user');
+  return user ? JSON.parse(user) : null;
+}
+
+export async function verifyToken(): Promise<boolean> {
+  const token = getStoredToken();
+  if (!token) return false;
+  try {
+    const res = await apiGet('/api/auth/verify');
+    return !!res.user;
+  } catch {
+    return false;
+  }
+}
+
+export function clearAuth(): void {
+  sessionStorage.removeItem('admin_token');
+  sessionStorage.removeItem('admin_user');
+  sessionStorage.removeItem('admin_auth');
+}
+
+// Wrap apiGet/apiPost to auto-add auth header
+export async function apiGetAuth(path: string) {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}
+
+export async function apiPostAuth(path: string, data?: object, options: RequestOptions = {}) {
+  const token = getStoredToken();
+  const res = await fetchWithRetry(`${API_BASE}${path}`, {
+    method: options.method || 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: data ? JSON.stringify(data) : undefined,
+  });
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}

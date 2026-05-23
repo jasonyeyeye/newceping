@@ -15,13 +15,15 @@ interface Env {
   // For scheduled publishing cron trigger
   SCHEDULED_PUBLISH_SECRET: string;
   // For AI features
-  AI: any;
+  AI: Ai;
   // JWT secret for token signing (REQUIRED)
   JWT_SECRET: string;
   // Setup secret for initial admin creation (REQUIRED)
   SETUP_SECRET: string;
   // AI Configuration (OpenAI compatible API)
   AI_CONFIG: KVNamespace;
+  USERS: KVNamespace;
+  COMMENTS: KVNamespace;
 }
 
 // Types
@@ -121,6 +123,93 @@ function validateEnvironment(env: Env): void {
 }
 
 // Password hashing salt - loaded from environment
+
+// ======== JWT Authentication ========
+async function generateToken(userId: string, username: string, role: string, env: Env): Promise<string> {
+  const secret = env.JWT_SECRET;
+  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const payload = btoa(JSON.stringify({
+    sub: userId,
+    username,
+    role,
+    iat: Date.now(),
+    exp: Date.now() + 7 * 24 * 60 * 60 * 1000,
+  }));
+  const key = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${header}.${payload}`));
+  const sig_b64 = btoa(String.fromCharCode(...new Uint8Array(sig)));
+  return `${header}.${payload}.${sig_b64}`;
+}
+
+async function verifyToken(token: string, env: Env): Promise<{ userId: string; username: string; role: string } | null> {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const [header, payload, sig] = parts;
+    const key = await crypto.subtle.importKey(
+      'raw', new TextEncoder().encode(env.JWT_SECRET),
+      { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
+    );
+    const valid = await crypto.subtle.verify('HMAC', key,
+      Uint8Array.from(atob(sig), c => c.charCodeAt(0)),
+      new TextEncoder().encode(`${header}.${payload}`)
+    );
+    if (!valid) return null;
+    const payloadObj = JSON.parse(atob(payload));
+    if (payloadObj.exp < Date.now()) return null;
+    return { userId: payloadObj.sub, username: payloadObj.username, role: payloadObj.role };
+  } catch { return null; }
+}
+
+async function requireAuth(request: Request, env: Env) {
+  const auth = request.headers.get('Authorization');
+  if (!auth || !auth.startsWith('Bearer ')) {
+    return { error: new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401, headers: { 'Content-Type': 'application/json' }
+    }) };
+  }
+  const token = auth.slice(7);
+  const user = await verifyToken(token, env);
+  if (!user) {
+    return { error: new Response(JSON.stringify({ error: 'Invalid or expired token' }), {
+      status: 401, headers: { 'Content-Type': 'application/json' }
+    }) };
+  }
+  return { user };
+}
+
+// ======== User Management ========
+async function getUserByUsername(username: string, env: Env) {
+  const data = await env.USERS.get(`users/username/${username}`);
+  return data ? JSON.parse(data) : null;
+}
+
+async function createUser(username: string, passwordHash: string, role: string, env: Env) {
+  const id = crypto.randomUUID();
+  const user = { id, username, passwordHash, role, createdAt: new Date().toISOString() };
+  await env.USERS.put(`users/${id}`, JSON.stringify(user));
+  await env.USERS.put(`users/username/${username}`, JSON.stringify(user));
+  return user;
+}
+
+// Simple password hash using PBKDF2 via Web Crypto
+async function hashPassword(password: string, salt: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey('raw', encoder.encode(password),
+    'PBKDF2', false, ['deriveBits']);
+  const hash = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: encoder.encode(salt), iterations: 100000 },
+    keyMaterial, 256);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function verifyPassword(password: string, storedHash: string, salt: string): Promise<boolean> {
+  const hash = await hashPassword(password, salt);
+  return hash === storedHash;
+}
+
 function getLegacyPasswordSalt(env: Env): string {
   const salt = (env as any).LEGACY_PASSWORD_SALT;
   if (!salt) {
@@ -277,6 +366,115 @@ async function setWithIds(kv: KVNamespace, prefix: string, id: string, data: obj
 // Router
 async function handleRequest(request: Request, env: Env): Promise<Response> {
   validateEnvironment(env);
+
+  // ======== AUTH ENDPOINTS ========
+  // POST /api/auth/login
+  if (path === '/api/auth/login' && request.method === 'POST') {
+    const { username, password } = await request.json();
+    if (!username || !password) {
+      return new Response(JSON.stringify({ error: 'username and password required' }), {
+        status: 400, headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    // Setup mode: use SETUP_SECRET to create first admin
+    if (password === env.SETUP_SECRET) {
+      const existing = await getUserByUsername(username, env);
+      if (!existing) {
+        const user = await createUser(username, '', 'admin', env);
+        const token = await generateToken(user.id, user.username, user.role, env);
+        return new Response(JSON.stringify({ token, user: { id: user.id, username: user.username, role: user.role } }), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      const token = await generateToken(existing.id, existing.username, existing.role, env);
+      return new Response(JSON.stringify({ token, user: { id: existing.id, username: existing.username, role: existing.role } }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    // Normal login
+    const user = await getUserByUsername(username, env);
+    if (!user || !user.passwordHash) {
+      return new Response(JSON.stringify({ error: 'Invalid credentials' }), {
+        status: 401, headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    const valid = await verifyPassword(password, user.passwordHash, user.id);
+    if (!valid) {
+      return new Response(JSON.stringify({ error: 'Invalid credentials' }), {
+        status: 401, headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    const token = await generateToken(user.id, user.username, user.role, env);
+    return new Response(JSON.stringify({ token, user: { id: user.id, username: user.username, role: user.role } }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // POST /api/auth/register (create user with hashed password)
+  if (path === '/api/auth/register' && request.method === 'POST') {
+    const { username, password, role } = await request.json();
+    if (!username || !password) {
+      return new Response(JSON.stringify({ error: 'username and password required' }), {
+        status: 400, headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    const existing = await getUserByUsername(username, env);
+    if (existing) {
+      return new Response(JSON.stringify({ error: 'Username already exists' }), {
+        status: 409, headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    const salt = crypto.randomUUID();
+    const passwordHash = await hashPassword(password, salt);
+    const user = await createUser(username, passwordHash + ':' + salt, role || 'editor', env);
+    const token = await generateToken(user.id, user.username, user.role, env);
+    return new Response(JSON.stringify({ token, user: { id: user.id, username: user.username, role: user.role } }), {
+      status: 201, headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // GET /api/auth/verify - verify token
+  if (path === '/api/auth/verify' && request.method === 'GET') {
+    const auth = request.headers.get('Authorization');
+    if (!auth || !auth.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'No token provided' }), {
+        status: 401, headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    const user = await verifyToken(auth.slice(7), env);
+    if (!user) {
+      return new Response(JSON.stringify({ error: 'Invalid token' }), {
+        status: 401, headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    return new Response(JSON.stringify({ user }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // POST /api/auth/setup - setup first admin (only if no users exist)
+  if (path === '/api/auth/setup' && request.method === 'POST') {
+    const { username, password } = await request.json();
+    if (!username || !password) {
+      return new Response(JSON.stringify({ error: 'username and password required' }), {
+        status: 400, headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    const existingUser = await getUserByUsername(username, env);
+    if (existingUser) {
+      return new Response(JSON.stringify({ error: 'User already exists' }), {
+        status: 409, headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    const salt = crypto.randomUUID();
+    const passwordHash = await hashPassword(password, salt);
+    const user = await createUser(username, passwordHash + ':' + salt, 'admin', env);
+    const token = await generateToken(user.id, user.username, user.role, env);
+    return new Response(JSON.stringify({ token, user: { id: user.id, username: user.username, role: user.role } }), {
+      status: 201, headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
   const url = new URL(request.url);
   const path = url.pathname;
 

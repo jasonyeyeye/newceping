@@ -24,6 +24,8 @@ const navItems = [
 
 export default function Sidebar() {
   function handleLogout() {
+    sessionStorage.removeItem('admin_token');
+    sessionStorage.removeItem('admin_user');
     sessionStorage.removeItem('admin_auth');
     window.location.href = '/login';
   }
