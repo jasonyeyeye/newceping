@@ -22,7 +22,7 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3): P
 }
 
 export async function apiGet(path: string) {
-  const res = await fetchWithRetry(`${API_BASE}${path}`);
+  const res = await fetchWithRetry(`${API_BASE}${path}`, {});
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
