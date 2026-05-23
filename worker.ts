@@ -246,6 +246,13 @@ function getCacheForPrefix(prefix: string): KVCache {
   }
 }
 
+// Cache-Control helper for public read endpoints
+function withCache(res: Response, maxAge = 300): Response {
+  const h = new Headers(res.headers);
+  h.set('Cache-Control', `public, max-age=${maxAge}, stale-while-revalidate=60`);
+  return new Response(res.body, { status: res.status, headers: h });
+}
+
 async function getAllIds(kv: KVNamespace, prefix: string): Promise<string[]> {
   const cache = getCacheForPrefix(prefix);
   const cached = cache.get<string[]>(`ids:${prefix}`);
@@ -333,13 +340,13 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     );
     const filtered = articles.filter(Boolean);
     if (status) {
-      return new Response(JSON.stringify(filtered.filter(a => a.status === status)), {
+      return withCache(new Response(JSON.stringify(filtered.filter(a => a.status === status)), {
         headers: { 'Content-Type': 'application/json' },
-      });
+      }));
     }
-    return new Response(JSON.stringify(filtered), {
+    return withCache(new Response(JSON.stringify(filtered), {
       headers: { 'Content-Type': 'application/json' },
-    });
+    }));
   }
 
   // Create article
@@ -453,9 +460,9 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
       }
       filteredIds.push(a);
     }
-    return new Response(JSON.stringify(filteredIds), {
+    return withCache(new Response(JSON.stringify(filteredIds), {
       headers: { 'Content-Type': 'application/json' },
-    });
+    }));
   }
 
   // Get categories with article count
@@ -484,9 +491,9 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
       articleCount: publishedArticles.filter((a: any) => a.categoryId === cat.id).length,
     }));
 
-    return new Response(JSON.stringify(categoriesWithCount), {
+    return withCache(new Response(JSON.stringify(categoriesWithCount), {
       headers: { 'Content-Type': 'application/json' },
-    });
+    }));
   }
 
   // Categories
@@ -499,9 +506,9 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
           return data ? JSON.parse(data) : null;
         })
       );
-      return new Response(JSON.stringify(categories.filter(Boolean)), {
+      return withCache(new Response(JSON.stringify(categories.filter(Boolean)), {
         headers: { 'Content-Type': 'application/json' },
-      });
+      }));
     }
     if (request.method === 'POST') {
       const body = await request.json();
@@ -553,7 +560,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
       return new Response(JSON.stringify({ error: 'folder_token required' }), { status: 400 });
     }
     const docs = await getFeishuDocs(env, folderToken);
-    return new Response(JSON.stringify(docs), { headers: { 'Content-Type': 'application/json' } });
+    return withCache(new Response(JSON.stringify(docs), { headers: { 'Content-Type': 'application/json' } }));
   }
 
   // Single Feishu doc content
@@ -564,7 +571,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     }
     try {
       const content = await getFeishuDocContent(env, docToken);
-      return new Response(JSON.stringify(content), { headers: { 'Content-Type': 'application/json' } });
+      return withCache(new Response(JSON.stringify(content), { headers: { 'Content-Type': 'application/json' } }));
     } catch (err) {
       return new Response(JSON.stringify({ error: 'Failed to get doc content' }), { status: 500 });
     }
@@ -669,7 +676,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     if (request.method === 'POST') {
       const body = await request.json();
       const result = await createOrUpdateFile(env, body.path, body.content, body.message, body.sha);
-      return new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json' } });
+      return withCache(new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json' } }));
     }
   }
 
@@ -885,9 +892,9 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
         return data ? JSON.parse(data) : null;
       })
     );
-    return new Response(JSON.stringify(items.filter(Boolean)), {
+    return withCache(new Response(JSON.stringify(items.filter(Boolean)), {
       headers: { 'Content-Type': 'application/json' },
-    });
+    }));
   }
 
   // POST /api/media - Upload media (returns simulated URL)
